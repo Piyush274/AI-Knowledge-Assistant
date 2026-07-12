@@ -5,3 +5,8 @@ passlib[bcrypt]
 pyjwt
 fastapi
 uvicorn
+langchain
+langchain-text-splitters
+langchain-google-genai
+PyMuPDF
+python-docx
