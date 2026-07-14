@@ -15,7 +15,8 @@ from app.db.session import Base
 from app.models.user import User
 from app.models.conversation import Conversation
 from app.models.chat_message import ChatMessage
+from app.models.document import Document, DocumentChunk
 
 # Now all models are registered with Base
 # __all__ defines exactly what gets exported when another file uses a "wildcard" import like this: import *
-__all__ = ['Base', 'User', 'Conversation', 'ChatMessage']
+__all__ = ['Base', 'User', 'Conversation', 'ChatMessage', 'Document', 'DocumentChunk']
