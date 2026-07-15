@@ -8,7 +8,7 @@ from typing import TypedDict, Annotated, Literal
 from langchain_core.messages import BaseMessage
 
 # Add_messages is a reducer, appends new messages to the existing chat history instead of replacing it.
-from langgraph.graph import add_messages
+from langgraph.graph import add_messages, StateGraph, END
 
 class GraphState(TypedDict):
 
@@ -38,5 +38,40 @@ class GraphState(TypedDict):
     # Annotated tells LangGraph to use add_messages() when updating this key instead of replacing it
     # Stores conversation history
     messages: Annotated[list[BaseMessage], add_messages]
+
+
+from app.agents.router_agent import router_node
+from app.agents.retriever_agent import retriever_node
+from app.agents.citation_agent import citation_node
+from app.agents.generator_agent import generator_node
+
+
+def decide_routing(state: GraphState)->str:
+    if state.get("route")=="retrieve":
+        return "retrieve"
+    else:
+        return "generator"
+
+
+# Initialize & Wire the Workflow
+workflow = StateGraph(GraphState)
+
+workflow.add_node("router", router_node)
+workflow.add_node("retriever", retriever_node)
+workflow.add_node("generator", generator_node)
+workflow.add_node("citation", citation_node)
+
+# Set entry point
+workflow.set_entry_point("router")
+workflow.add_conditional_edges("router", decide_routing, {"retrieve":"retriever", "generator":"generator"})
+
+workflow.add_edge("retriever","generator")
+workflow.add_edge("generator", "citation")
+workflow.add_edge("citation", END)
+
+
+# Compile the graph
+
+app=workflow.compile()
 
 
