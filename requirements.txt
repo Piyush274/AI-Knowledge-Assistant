@@ -6,7 +6,9 @@ pyjwt
 fastapi
 uvicorn
 langchain
+langgraph
 langchain-text-splitters
 langchain-google-genai
 PyMuPDF
 python-docx
+pgvector
