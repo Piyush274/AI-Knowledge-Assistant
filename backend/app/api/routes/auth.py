@@ -9,9 +9,10 @@ from app.schemas.user import Token, UserCreate, UserResponse
 
 router = APIRouter()
 
-# Decorator signup endpoint (user_in: UserCreate (request body))
-@router.post("/signup",response_model=UserResponse,status_code=status.HTTP_201_CREATED)
-def signup(user_in: UserCreate,db: Session = Depends(get_db)):
+# Decorator signup endpoint (user_in: UserCreate (request body)) & returns (response_model=UserResponse)
+
+@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def signup(user_in: UserCreate, db: Session = Depends(get_db)):
 
     user = db.query(User).filter(User.email == user_in.email).first()
 
@@ -23,6 +24,7 @@ def signup(user_in: UserCreate,db: Session = Depends(get_db)):
 
     hashed_pw = hash_password(user_in.password)
 
+    # Create a database model instance
     new_user = User(
         email=user_in.email,
         hashed_password=hashed_pw,
@@ -36,25 +38,17 @@ def signup(user_in: UserCreate,db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(),db: Session = Depends(get_db)):
-    user = (
-        db.query(User)
-        .filter(User.email == form_data.username)
-        .first()
-    )
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
 
-    if user is None or not verify_password(
-        form_data.password,
-        user.hashed_password,
-    ):
+    user = db.query(User).filter(User.email == form_data.username).first()
+
+    if user is None or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect email or password",
         )
 
-    access_token = create_access_token(
-        data={"sub": user.email}
-    )
+    access_token = create_access_token(data={"sub": user.email})
 
     return {
         "access_token": access_token,
