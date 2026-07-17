@@ -20,8 +20,8 @@ function DocumentsPage() {
   const { data: documents = [], isLoading, error } = useQuery({
     queryKey: ['documents'],
     queryFn: async () => {
-      // Endpoint GET /documents lists user-owned files
-      const response = await client.get('/documents')
+      // Endpoint GET /documents/ lists user-owned files
+      const response = await client.get('/documents/')
       return response.data
     },
     // Poll every 3 seconds to auto-refresh the parsing status of documents (e.g. from "processing" to "ready")

@@ -4,7 +4,7 @@ from app.agents.graph import GraphState
 
 
 def generator_node(state: GraphState)->dict:
-    llm=ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.5)
+    llm=ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.5)
 
     # In LangGraph, not every field is populated at every step, so use get to handle empty state fields and avoid error
     route=state["route"]

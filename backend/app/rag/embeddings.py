@@ -9,7 +9,8 @@ load_dotenv()
 
 # Instantiate the embedding client
 embeddings_client = GoogleGenerativeAIEmbeddings(
-    model="models/gemini-embedding-001"
+    model="models/gemini-embedding-001",
+    output_dimensionality=768
 )
 
 def embed_text_chunks(chunks: list[str]) -> list[list[float]]:

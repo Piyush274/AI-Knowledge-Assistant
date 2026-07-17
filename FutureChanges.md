@@ -15,3 +15,5 @@ Live Admin Dashboard: Build a real-time monitor using Recharts showing active sy
 
 3. Fix JWT cookie 
 Refactor my authentication flow to use secure HttpOnly cookies instead of storing JWTs in localStorage.
+
+.\venv\Scripts\uvicorn app.main:app --reload --app-dir backend

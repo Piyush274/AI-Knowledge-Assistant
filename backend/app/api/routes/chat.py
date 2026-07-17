@@ -28,6 +28,7 @@ def create_session(
         title=session_in.title or "New Chat"
     )
     db.add(db_session)
+    db.commit()
     db.refresh(db_session)
 
     return db_session
