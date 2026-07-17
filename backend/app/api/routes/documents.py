@@ -30,7 +30,7 @@ from app.schemas.document import DocumentResponse
 router = APIRouter()
 
 # Create this directory dynamically using os.makedirs(UPLOAD_DIR, exist_ok=True)
-UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent.parent / "uploads"
 
 # If folder does not exist create it
 os.makedirs(UPLOAD_DIR, exist_ok=True)

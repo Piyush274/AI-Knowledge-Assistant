@@ -69,7 +69,8 @@ export function useChat(sessionId) {
 
       // We must use standard fetch instead of Axios because Axios does not support 
       // reading stream bodies easily in the browser environment.
-      const response = await fetch(`/api/chat/sessions/${sessionId}/messages`, {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "/api";
+      const response = await fetch(`${apiBase}/chat/sessions/${sessionId}/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -14,6 +15,11 @@ origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# Allow dynamic origins from environment variables (e.g. Vercel domain)
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
+if allowed_origins_env:
+    origins.extend([origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()])
 
 # Apply CORS middleware to enable secure cross-origin HTTP and SSE requests
 app.add_middleware(
