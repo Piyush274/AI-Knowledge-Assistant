@@ -13,3 +13,4 @@ PyMuPDF
 python-docx
 pgvector
 email-validator
+python-multipart
