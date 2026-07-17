@@ -12,3 +12,4 @@ langchain-google-genai
 PyMuPDF
 python-docx
 pgvector
+email-validator
