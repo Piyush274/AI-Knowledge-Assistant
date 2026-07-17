@@ -28,14 +28,13 @@ def create_session(
         title=session_in.title or "New Chat"
     )
     db.add(db_session)
-    db.commit()
-    db.refresh(session)
+    db.refresh(db_session)
 
-    return session
+    return db_session
 
 
 # List sessions
-@router.get("/sessions", response_model=List[SessionResponse])
+@router.get("/sessions", response_model=list[SessionResponse])
 def list_sessions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -60,64 +59,114 @@ def get_session(
 
     return session
 
+
 # Send Message & Stream SSE
-@router.post("/sessions/{session_id}/messages", response_model=Message)
-def send_message(
+@router.post("/sessions/{session_id}/messages")
+async def send_message(
     session_id: str,
-    message_input: MessageCreate,
+    message_in: MessageCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-   # Search the DB for the conversation
-   session=db.query(Conversation).filter(Conversation.id==session_id, Conversation.user_id==current_user.id).first()
+    # Verify session ownership
+    session = (
+        db.query(Conversation)
+        .filter(
+            Conversation.id == session_id,
+            Conversation.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
 
-   if not session:
-       raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    # Save user message to database
+    user_msg = ChatMessage(
+        session_id=session.id,
+        role="user",
+        content=message_in.content,
+    )
+    db.add(user_msg)
+    db.commit()
 
-   # Create a user chat message and save
-   user_message=ChatMessage(
-       session_id=session_id,
-       role="user",
-       content=message_input.content,
-   )
-   db.add(user_message)
-   db.commit()
-   db.refresh(user_message)
+    # Fetch conversation history to pass to LangGraph
+    history = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
 
-   # Build LLM history, Retrieve Conversation History, to give full context to model
+    # Format history for LangChain
+    langchain_messages = []
+    for msg in history:
+        if msg.role == "user":
+            langchain_messages.append(HumanMessage(content=msg.content))
+        else:
+            langchain_messages.append(AIMessage(content=msg.content))
 
-   history=db.query(ChatMessage).filter(ChatMessage.session_id==session_id).order_by(ChatMessage.created_at.asc()).all()
-   
-   for x in history:
-      if x.role=="user"
-        HumanMessage(content=x.content)
-      if x.role=="assitant"
-        AIMessage(content==x.content)
-
-   # Assemble graph state inputs
-   inputs = {
-    "query": message_input.content,
-    "messages": langchain_messages,
-    "route": "direct",
-    "documents": [],
-    "draft_answer": "",
-    "final_answer": "",
-    "citations": []
+    # Construct the graph state inputs and then send to langgraph as intital state
+    inputs = {
+        "query": message_in.content,
+        "messages": langchain_messages,
+        "route": "direct",
+        "documents": [],
+        "draft_answer": "",
+        "final_answer": "",
+        "citations": [],
     }
 
-    # Create the Serve Sent Events (SSE) Generator
-    # async because langgraph streams events asynchronously, async for event in instead of for event in
+    # This function is not executed immediately, it only runs on Streaming Response StreamingResponse(event_generator())
     async def event_generator():
-        final_answer = ""    
-        citaions=[]
-        
-        # Start listening to langgraph event by event
-        async for event in agent_app.astream(inputs, version="v2"):
-            
+        final_answer = ""
+        citations = []
 
-      
+ 
+        try:
+            # Stream events from LangGraph
+            async for event in agent_app.astream_events(inputs, version="v2"):
+                
+                # Suppose LangGraph gives tokens in chunks of AIMessageChunk
+                # event = {"event": "on_chat_model_stream", "data": {"chunk": AIMessageChunk(content="RAG")}}
 
-   
+                # token is small part of response "Hello" then " I am Gpt"
 
+                # Filter for text tokens from the chat model
+                if event["event"] == "on_chat_model_stream":
+                    token = event["data"]["chunk"].content
+                    # SSE requires blank line after every event
+                    yield f"data: {json.dumps({'token': token})}\n\n"
 
-   
+                # Capture final answer and citations when the citation critic node ends
+                elif (
+                    event["event"] == "on_chain_end"
+                    and event["metadata"].get("langgraph_node") == "citation"
+                ):
+                    node_output = event["data"]["output"]
+                    final_answer = node_output.get("final_answer", "")
+                    citations = node_output.get("citations", [])
+
+            # Write the assistant's final response to the database
+            assistant_msg = ChatMessage(
+                session_id=session.id,
+                role="assistant",
+                content=final_answer,
+            )
+            db.add(assistant_msg)
+            db.commit()
+
+            # Yield done signal and citations metadata
+            yield f"data: {json.dumps({'done': True, 'citations': citations})}\n\n"
+
+        except Exception as e:
+            print(f"Streaming error: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+    )
+

@@ -18,7 +18,7 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db # Get db session and current logged in user
-from app.db.session import SessionLocal # Get other db session for background task
+from app.db.session import sessionLocal # Get other db session for background task
 from app.models.document import Document
 from app.models.user import User
 from app.rag.embeddings import embed_text_chunks
@@ -39,7 +39,7 @@ ALLOWED_EXTENSIONS = {".txt", ".md", ".pdf", ".docx"}
 
 
 def run_ingestion_pipeline(document_id: str, file_path: str):
-    db = SessionLocal()
+    db = sessionLocal()
 
     try:
         text = extract_text(file_path)
