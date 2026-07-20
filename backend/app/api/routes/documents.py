@@ -12,12 +12,14 @@ from fastapi import (
     Depends,
     File,
     HTTPException,
+    Request,
     UploadFile, #Tell fast api that it is file not json
     status,
 )
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db # Get db session and current logged in user
+from app.core.rate_limit import limiter
 from app.db.session import sessionLocal # Get other db session for background task
 from app.models.document import Document
 from app.models.user import User
@@ -89,8 +91,13 @@ def run_ingestion_pipeline(document_id: str, file_path: str):
 
 
 # User uploads document, Whatever object you return is converted into the schema. 202 Accpeted not ok still prcocessing
+
+# Prevents storage/ingestion spam
+
+@limiter.limit("10/minute")
 @router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_202_ACCEPTED)
 def upload_document(
+    request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...), #... Python's Ellipsis object,This field is required. frontend sends multipart/form-data
     db: Session = Depends(get_db),

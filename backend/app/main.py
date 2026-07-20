@@ -7,8 +7,25 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.documents import router as documents_router
 from app.api.routes.chat import router as chat_router
 
+# Rate limiter
+
+# When a request exceeds its limit, SlowAPI raises
+from slowapi.errors import RateLimitExceeded
+
+# SlowAPI's predefined function for converting the exception into an HTTP response
+from slowapi import _rate_limit_exceeded_handler
+
+# Global limiter
+from app.core.rate_limit import limiter
+
 # Initialize the main FastAPI application
 app = FastAPI(title="AI Knowledge Assistant API", version="1.0.0")
+
+# Attach limiter to application state object where application-wide objects can be stored
+app.state.limiter=limiter
+
+# Register the exception handler, RateLimitExceeded occurs, use _rate_limit_exceeded_handler to handle it
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS origins allowed to communicate with the API (React frontend)
 origins = [

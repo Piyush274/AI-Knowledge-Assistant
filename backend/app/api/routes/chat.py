@@ -12,6 +12,10 @@ from app.models import User
 from app.schemas.chat import SessionCreate, SessionResponse, MessageCreate
 from app.agents.graph import app as agent_app
 
+# Rate Limiting - SlowAPI needs the incoming request to determine the client to get ip
+from fastapi import Request
+from app.core.rate_limit import limiter
+
 router = APIRouter()
 
 # Create a new chat session
@@ -62,8 +66,12 @@ def get_session(
 
 
 # Send Message & Stream SSE
+
+# Protects expensive LLM/retrieval operations
+@limiter.limit("20/minute")
 @router.post("/sessions/{session_id}/messages")
 async def send_message(
+    request: Request,
     session_id: str,
     message_in: MessageCreate,
     db: Session = Depends(get_db),
