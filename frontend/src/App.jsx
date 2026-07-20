@@ -18,7 +18,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="text-xl">✨</span>
             <span className="font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
-              Antigravity Knowledge Assistant
+              AI Knowledge Assistant
             </span>
           </div>
 
