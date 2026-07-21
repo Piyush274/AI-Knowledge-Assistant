@@ -1,0 +1,93 @@
+#  Create the root-level docker-compose.yml to orchestrate our 4 services: PostgreSQL (pgvector), Redis, Backend (FastAPI), and Frontend (Nginx/React).
+
+services:
+  # 1. PostgreSQL Database
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: ai_knowledge_db
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: knowledge_db
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d knowledge_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - app-network
+
+  # 2. Redis Cache / Rate Limiting
+  redis:
+    image: redis:7-alpine
+    container_name: ai_knowledge_redis
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - app-network
+
+  # 3. FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: ai_knowledge_backend
+
+    ports:
+      - "8000:8000"
+
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/knowledge_db
+      REDIS_URL: redis://redis:6379/0
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    networks:
+      - app-network
+
+  # 4. React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+
+    container_name: ai_knowledge_frontend
+
+    ports:
+      - "80:80"
+
+    depends_on:
+      - backend
+
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge
+
+# Declare a shared bridge network (e.g. app-network) so containers can communicate using service names as hostname aliases 
+# (e.g., http://db:5432, http://redis:6379, http://backend:8000)
