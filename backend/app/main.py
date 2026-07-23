@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.auth import router as auth_router
 from app.api.routes.documents import router as documents_router
 from app.api.routes.chat import router as chat_router
+from app.api.routes.analytics import router as analytics_router
 
 # Rate limiter
 
@@ -20,6 +21,11 @@ from app.core.rate_limit import limiter
 
 # Initialize the main FastAPI application
 app = FastAPI(title="AI Knowledge Assistant API", version="1.0.0")
+
+# Auto-create tables on startup
+from app.db.session import engine
+from app.models import Base
+Base.metadata.create_all(bind=engine)
 
 # Attach limiter to application state object where application-wide objects can be stored
 app.state.limiter=limiter
@@ -59,6 +65,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(documents_router, prefix="/documents", tags=["Documents"])
 app.include_router(chat_router, prefix="/chat", tags=["Chat"])
+app.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
 
 # Simple health check endpoint for monitoring app status
 @app.get("/health")

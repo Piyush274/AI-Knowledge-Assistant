@@ -41,9 +41,23 @@ ALLOWED_EXTENSIONS = {".txt", ".md", ".pdf", ".docx"}
 
 
 def run_ingestion_pipeline(document_id: str, file_path: str):
+    import time
+    from app.services.analytics_service import log_query_metrics
+    start_time = time.time()
     db = sessionLocal()
+    success = True
+    user_id = None
 
     try:
+        # Retrieve user_id from Document to log metrics properly
+        doc = (
+            db.query(Document)
+            .filter(Document.id == document_id)
+            .first()
+        )
+        if doc:
+            user_id = doc.user_id
+
         text = extract_text(file_path)
         chunks = create_chunks(text)
 
@@ -59,13 +73,7 @@ def run_ingestion_pipeline(document_id: str, file_path: str):
             embeddings=embeddings,
         )
 
-        doc = (
-            db.query(Document)
-            .filter(Document.id == document_id)
-            .first()
-        )
-        
-        # If the document exists and has not been deleted by another process, update its status to ready
+        # Update document status to ready
         if doc:
             doc.status = "ready"
             db.commit()
@@ -73,7 +81,7 @@ def run_ingestion_pipeline(document_id: str, file_path: str):
     # If anything fails, rollback the transaction and set the status to failed
     except Exception as e:
         print(f"Ingestion failed: {e}")
-
+        success = False
         db.rollback() #Undo unfinished db work
 
         doc = (
@@ -87,6 +95,17 @@ def run_ingestion_pipeline(document_id: str, file_path: str):
             db.commit()
 
     finally:
+        latency_ms = (time.time() - start_time) * 1000
+        try:
+            log_query_metrics(
+                db=db,
+                user_id=user_id,
+                event_type="document_ingestion",
+                latency_ms=latency_ms,
+                success=success
+            )
+        except Exception as ae:
+            print(f"Failed to log ingestion metrics: {ae}")
         db.close()
 
 

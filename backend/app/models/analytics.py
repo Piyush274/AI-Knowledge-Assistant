@@ -6,6 +6,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Uuid,
 )
 from sqlalchemy.sql import func
 
@@ -27,7 +28,7 @@ class AnalyticsEvent(Base):
     # ID of the user who triggered the event.
     # nullable=True because some events may come from anonymous users.
     user_id = Column(
-        Integer,
+        Uuid,
         ForeignKey("users.id"),
         nullable=True,
     )

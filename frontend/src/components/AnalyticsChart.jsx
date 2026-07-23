@@ -49,12 +49,12 @@ function CustomTooltip({ active, payload, label }) {
   return null
 }
 
-function AnalyticsChart() {
+function AnalyticsChart({ data }) {
   return (
     <div className="w-full h-80 bg-slate-950/40 p-4 border border-slate-850 rounded-xl relative select-none">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
-          data={analyticsMockData}
+          data={data || []}
           margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
         >
           {/* Subtle grid lines */}

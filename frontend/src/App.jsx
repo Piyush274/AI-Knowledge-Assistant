@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Login from './pages/Login'
 import ChatPage from './pages/ChatPage'
 import DocumentsPage from './pages/DocumentsPage'
-import AdminDashboard from './pages/AdminDashboard'
+import AnalyticsDashboard from './pages/AnalyticsDashboard'
 
 // Instantiate Query Client
 const queryClient = new QueryClient()
@@ -32,8 +32,8 @@ export default function App() {
             <Link to="/documents" className="text-xs uppercase font-semibold tracking-wider text-slate-400 hover:text-slate-100 transition-colors">
               Ingest Files
             </Link>
-            <Link to="/admin" className="text-xs uppercase font-semibold tracking-wider text-slate-400 hover:text-slate-100 transition-colors">
-              Admin Board
+            <Link to="/analytics" className="text-xs uppercase font-semibold tracking-wider text-slate-400 hover:text-slate-100 transition-colors">
+              Analytics
             </Link>
           </div>
         </nav>
@@ -43,7 +43,7 @@ export default function App() {
             <Route path="/" element={<Login />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/documents" element={<DocumentsPage />} />
-            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/analytics" element={<AnalyticsDashboard />} />
           </Routes>
         </main>
       </BrowserRouter>

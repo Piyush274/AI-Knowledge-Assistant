@@ -1,3 +1,4 @@
+import uuid
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -7,7 +8,7 @@ from app.models.analytics import AnalyticsEvent
 # Inserts a new row into analytics_events
 def log_query_metrics(
     db: Session,
-    user_id: int | None,
+    user_id: uuid.UUID | str | None,
     event_type: str,
     latency_ms: float,
     success: bool = True,

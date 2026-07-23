@@ -130,10 +130,13 @@ async def send_message(
 
     # This function is not executed immediately, it only runs on Streaming Response StreamingResponse(event_generator())
     async def event_generator():
+        import time
+        from app.services.analytics_service import log_query_metrics
+        start_time = time.time()
         final_answer = ""
         citations = []
+        success = True
 
- 
         try:
             # Stream events from LangGraph
             async for event in agent_app.astream_events(inputs, version="v2"):
@@ -171,8 +174,21 @@ async def send_message(
             yield f"data: {json.dumps({'done': True, 'citations': citations})}\n\n"
 
         except Exception as e:
+            success = False
             print(f"Streaming error: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            latency_ms = (time.time() - start_time) * 1000
+            try:
+                log_query_metrics(
+                    db=db,
+                    user_id=current_user.id,
+                    event_type="chat_query",
+                    latency_ms=latency_ms,
+                    success=success
+                )
+            except Exception as ae:
+                print(f"Failed to log chat metrics: {ae}")
 
     return StreamingResponse(
         event_generator(),

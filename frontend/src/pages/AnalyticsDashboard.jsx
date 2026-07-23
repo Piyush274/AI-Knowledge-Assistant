@@ -1,26 +1,61 @@
-import React, { useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AnalyticsChart from '../components/AnalyticsChart'
+import client from '../api/client'
 
-// Mock activity events list (to be loaded from db in Module 7)
-const recentActivitiesMock = [
-  { id: 1, type: 'upload', user: 'sam@example.com', target: 'quarterly_report.pdf', time: '10 mins ago' },
-  { id: 2, type: 'query', user: 'piyush@example.com', target: 'Semantic Search on postgres chunks', time: '24 mins ago' },
-  { id: 3, type: 'signup', user: 'jane@example.com', target: 'New user registration', time: '1 hour ago' },
-  { id: 4, type: 'delete', user: 'sam@example.com', target: 'old_notes.docx', time: '3 hours ago' },
-  { id: 5, type: 'query', user: 'clara@example.com', target: 'Vite config routing details', time: '5 hours ago' }
-]
-
-function AdminDashboard() {
+function AnalyticsDashboard() {
   const navigate = useNavigate()
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Authenticated boundary check
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (!token) {
       navigate('/')
+      return
     }
+
+    async function fetchAnalytics() {
+      try {
+        setLoading(true)
+        const res = await client.get('/analytics/dashboard')
+        setData(res.data)
+        setError(null)
+      } catch (err) {
+        console.error('Failed to fetch analytics', err)
+        setError('Failed to load system metrics. Please try again later.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAnalytics()
   }, [navigate])
+
+  if (loading) {
+    return (
+      <div className="min-h-[85vh] flex items-center justify-center bg-slate-950 text-slate-100 p-8 rounded-2xl border border-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-slate-400 font-semibold text-sm">Loading System Metrics...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[85vh] flex items-center justify-center bg-slate-950 text-slate-100 p-8 rounded-2xl border border-slate-900">
+        <div className="text-center space-y-4">
+          <span className="text-4xl">⚠️</span>
+          <p className="text-red-400 font-semibold">{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const { active_users, files_ingested, queries_24h, avg_latency, daily_stats, recent_activities } = data
 
   return (
     <div className="min-h-[85vh] bg-slate-950 text-slate-100 p-4 md:p-8 rounded-2xl border border-slate-900 shadow-2xl relative">
@@ -35,7 +70,7 @@ function AdminDashboard() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
             <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
-              Admin Systems Analytics
+              System Analytics & Performance
             </h1>
             <p className="text-sm text-slate-400">
               Real-time monitoring panel for vector ingestion, search requests, and latency.
@@ -56,10 +91,9 @@ function AdminDashboard() {
               <span>Active Users</span>
               <span className="text-lg">👥</span>
             </div>
-            <div className="text-2xl font-extrabold text-slate-100 font-mono">148</div>
+            <div className="text-2xl font-extrabold text-slate-100 font-mono">{active_users}</div>
             <div className="text-[10px] text-emerald-450 font-semibold flex items-center gap-1">
-              <span>↑ +12%</span>
-              <span className="text-slate-500 font-normal">from last week</span>
+              <span>System-wide users</span>
             </div>
           </div>
 
@@ -69,10 +103,9 @@ function AdminDashboard() {
               <span>Files Ingested</span>
               <span className="text-lg">📚</span>
             </div>
-            <div className="text-2xl font-extrabold text-slate-100 font-mono">612</div>
+            <div className="text-2xl font-extrabold text-slate-100 font-mono">{files_ingested}</div>
             <div className="text-[10px] text-emerald-450 font-semibold flex items-center gap-1">
-              <span>↑ +4.2%</span>
-              <span className="text-slate-500 font-normal">database chunks safe</span>
+              <span>database chunks safe</span>
             </div>
           </div>
 
@@ -82,10 +115,9 @@ function AdminDashboard() {
               <span>Queries (24h)</span>
               <span className="text-lg">⚡</span>
             </div>
-            <div className="text-2xl font-extrabold text-slate-100 font-mono">1,024</div>
+            <div className="text-2xl font-extrabold text-slate-100 font-mono">{queries_24h}</div>
             <div className="text-[10px] text-emerald-450 font-semibold flex items-center gap-1">
-              <span>↑ +18.5%</span>
-              <span className="text-slate-500 font-normal">active SSE streams</span>
+              <span>active search queries</span>
             </div>
           </div>
 
@@ -95,10 +127,9 @@ function AdminDashboard() {
               <span>Avg Latency</span>
               <span className="text-lg">⏳</span>
             </div>
-            <div className="text-2xl font-extrabold text-slate-100 font-mono">185ms</div>
+            <div className="text-2xl font-extrabold text-slate-100 font-mono">{avg_latency}ms</div>
             <div className="text-[10px] text-emerald-450 font-semibold flex items-center gap-1">
-              <span>↓ -15ms</span>
-              <span className="text-slate-500 font-normal">faster retrieval index</span>
+              <span>average retrieval response</span>
             </div>
           </div>
 
@@ -114,7 +145,7 @@ function AdminDashboard() {
               Visual analytics matching daily user LLM requests with average token streaming response times.
             </p>
           </div>
-          <AnalyticsChart />
+          <AnalyticsChart data={daily_stats} />
         </div>
 
         {/* Audit Log / Recent Events Table */}
@@ -126,31 +157,37 @@ function AdminDashboard() {
           </div>
           
           <div className="divide-y divide-slate-850">
-            {recentActivitiesMock.map((act) => (
-              <div 
-                key={act.id} 
-                className="px-6 py-3.5 flex items-center justify-between hover:bg-slate-900/35 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  {/* Icon badge matching event type */}
-                  <span className="text-sm select-none">
-                    {act.type === 'upload' ? '📤' : act.type === 'query' ? '💬' : act.type === 'signup' ? '👤' : '🗑️'}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-slate-200">
-                      <span className="text-blue-400 font-mono text-xs font-semibold mr-1">{act.user}</span>
-                      {act.type === 'upload' ? 'uploaded document' : act.type === 'query' ? 'asked query' : act.type === 'signup' ? 'created account' : 'deleted file'}
-                    </p>
-                    <p className="text-xs text-slate-500 font-mono mt-0.5 max-w-[280px] sm:max-w-md truncate" title={act.target}>
-                      {act.target}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-mono text-slate-500 select-none whitespace-nowrap">
-                  {act.time}
-                </span>
+            {recent_activities.length === 0 ? (
+              <div className="px-6 py-8 text-center text-sm text-slate-500 font-mono">
+                No events recorded yet. Perform chat queries or ingest files to see metrics.
               </div>
-            ))}
+            ) : (
+              recent_activities.map((act) => (
+                <div 
+                  key={act.id} 
+                  className="px-6 py-3.5 flex items-center justify-between hover:bg-slate-900/35 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Icon badge matching event type */}
+                    <span className="text-sm select-none">
+                      {act.type === 'upload' ? '📤' : act.type === 'query' ? '💬' : act.type === 'signup' ? '👤' : '⚙️'}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-slate-200">
+                        <span className="text-blue-400 font-mono text-xs font-semibold mr-1">{act.user}</span>
+                        {act.type === 'upload' ? 'triggered document ingestion' : act.type === 'query' ? 'executed chat query' : act.type === 'signup' ? 'created account' : 'performed operation'}
+                      </p>
+                      <p className="text-xs text-slate-500 font-mono mt-0.5 max-w-[280px] sm:max-w-md truncate" title={act.target}>
+                        {act.target}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-500 select-none whitespace-nowrap">
+                    {act.time}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -159,4 +196,4 @@ function AdminDashboard() {
   )
 }
 
-export default AdminDashboard
+export default AnalyticsDashboard
