@@ -282,8 +282,47 @@ graph TD
 *   **Cache:** [Upstash](https://upstash.com/) Serverless Redis for distributed rate-limiting.
 
 ### Option B: AWS EC2 Instance Deployment (Standard Production)
-*   Deploys a single `t2.micro` or `t3.micro` EC2 instances.
-*   Leverages a custom GitHub Actions workflow (`.github/workflows/ci-cd.yml`) that builds docker images, uploads them to AWS ECR, and triggers a rolling container rebuild on the virtual machine via SSH commands.
+This configuration leverages a custom GitHub Actions workflow ([deploy.yml](file:///.github/workflows/deploy.yml)) that automates pushing build images to **AWS ECR** and deploying them to **AWS EC2**.
+
+#### 1. Setup GitHub Actions Secrets
+In your GitHub Repository, navigate to **Settings** ➡️ **Secrets and variables** ➡️ **Actions** and add the following repository secrets:
+*   `AWS_ACCESS_KEY_ID`: Your AWS IAM deployment user access key.
+*   `AWS_SECRET_ACCESS_KEY`: Your AWS IAM deployment user secret key.
+*   `AWS_REGION`: The target AWS region (e.g., `us-east-1`).
+*   `EC2_HOST`: The Public IP or Elastic IP of your EC2 instance.
+*   `EC2_USER`: The username of the instance (usually `ubuntu`).
+*   `EC2_SSH_KEY`: The entire contents of your private key `.pem` file.
+
+#### 2. Configure AWS Console
+1.  **IAM**: Create a deployment user with permissions for `AmazonEC2ContainerRegistryPowerUser`.
+2.  **ECR**: Create two private repositories named `ai-knowledge-backend` and `ai-knowledge-frontend`.
+3.  **EC2**: Launch an Ubuntu instance. Open incoming ports `22` (SSH), `80` (HTTP), and `443` (HTTPS).
+
+#### 3. Initialize EC2 Server Environment
+SSH into your EC2 server and install Docker:
+```bash
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose-v2 awscli
+sudo usermod -aG docker ubuntu
+newgrp docker
+```
+
+Clone the repository to the home directory:
+```bash
+cd ~
+git clone https://github.com/your-username/AI-Knowledge-Assistant.git
+cd AI-Knowledge-Assistant
+```
+
+Create a local `.env` configuration file on the EC2 host containing production credentials:
+```env
+DATABASE_URL=postgresql://postgres:postgres@db:5432/knowledge_db
+REDIS_URL=redis://redis:6379/0
+SECRET_KEY=your_production_jwt_secret
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+GOOGLE_API_KEY=your_production_gemini_api_key
+```
 
 ---
 
