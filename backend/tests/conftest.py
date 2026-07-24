@@ -20,9 +20,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # Import your fast api application to call apis
-from app.main import app as fastapi_app
-from app.api.deps import get_db
-from app.db.session import Base
 import os
 from dotenv import load_dotenv
 
@@ -47,6 +44,19 @@ else:
 
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Enable vector extension BEFORE importing any app modules that might call Base.metadata.create_all()
+from sqlalchemy import text
+try:
+    with engine.connect() as conn:
+        conn.execution_options(isolation_level="AUTOCOMMIT").execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+except Exception as e:
+    print(f"Warning: Could not enable vector extension on startup: {e}")
+
+# Import your fast api application to call apis
+from app.main import app as fastapi_app
+from app.api.deps import get_db
+from app.db.session import Base
 
 # Monkeypatch sessionLocal globally for testing, ensuring background tasks and agents use the test database
 import app.db.session
