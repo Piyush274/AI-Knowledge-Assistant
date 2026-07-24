@@ -123,7 +123,6 @@ def upload_document(
     current_user: User = Depends(get_current_user),
 ):
 
-    # Get suffic ai.pdf suffix is .pdf
     extension = Path(file.filename).suffix.lower()
 
     if extension not in ALLOWED_EXTENSIONS:
