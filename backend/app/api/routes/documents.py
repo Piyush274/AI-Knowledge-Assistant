@@ -149,20 +149,7 @@ def upload_document(
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer) # Copies UploadFile stream to uploads/abc123_notes.pdf
 
-    # Start background tasks
-    background_tasks.add_task(
-        run_ingestion_pipeline,
-        str(db_doc.id),
-        str(file_path),
-    )
-
-    # FastAPI remembers, these after response
-    # run_ingestion_pipeline(
-    # document_id,
-    # file_path
-    # )
-
-    # FastAPI remember these after the request has been completed
+    # Start background task for asynchronous document ingestion
     background_tasks.add_task(
         run_ingestion_pipeline,
         str(db_doc.id),
