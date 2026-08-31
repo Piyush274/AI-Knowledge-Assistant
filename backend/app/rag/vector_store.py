@@ -24,7 +24,15 @@ def save_chunks_to_db(db: Session, document_id: str, chunks: list[str], embeddin
         db.rollback()
         raise e
 
-def search_similar_chunks(db: Session, query_embedding: list[float], limit: int)->list[DocumentChunk]:
+def search_similar_chunks(
+    db: Session,
+    query_embedding: list[float],
+    limit: int = 5,
+    user_id: str | None = None
+) -> list[DocumentChunk]:
+    query = db.query(DocumentChunk)
+    if user_id:
+        query = query.join(Document, DocumentChunk.document_id == Document.id).filter(Document.user_id == user_id)
     
-    results=db.query(DocumentChunk).order_by(DocumentChunk.embedding.cosine_distance(query_embedding)).limit(limit).all()
+    results = query.order_by(DocumentChunk.embedding.cosine_distance(query_embedding)).limit(limit).all()
     return results

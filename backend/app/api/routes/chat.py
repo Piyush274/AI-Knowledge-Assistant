@@ -120,6 +120,7 @@ async def send_message(
     # Construct the graph state inputs and then send to langgraph as intital state
     inputs = {
         "query": message_in.content,
+        "user_id": str(current_user.id),
         "messages": langchain_messages,
         "route": "direct",
         "documents": [],
@@ -141,21 +142,21 @@ async def send_message(
             # Stream events from LangGraph
             async for event in agent_app.astream_events(inputs, version="v2"):
                 
-                # Suppose LangGraph gives tokens in chunks of AIMessageChunk
-                # event = {"event": "on_chat_model_stream", "data": {"chunk": AIMessageChunk(content="RAG")}}
-
-                # token is small part of response "Hello" then " I am Gpt"
-
-                # Filter for text tokens from the chat model
-                if event["event"] == "on_chat_model_stream":
-                    token = event["data"]["chunk"].content
-                    # SSE requires blank line after every event
-                    yield f"data: {json.dumps({'token': token})}\n\n"
+                # Filter for text tokens exclusively from the generator node to prevent router/critic token leak
+                if (
+                    event["event"] == "on_chat_model_stream"
+                    and event.get("metadata", {}).get("langgraph_node") == "generator"
+                ):
+                    chunk = event.get("data", {}).get("chunk")
+                    if chunk and hasattr(chunk, "content") and chunk.content:
+                        token = chunk.content
+                        # SSE requires blank line after every event
+                        yield f"data: {json.dumps({'token': token})}\n\n"
 
                 # Capture final answer and citations when the citation critic node ends
                 elif (
                     event["event"] == "on_chain_end"
-                    and event["metadata"].get("langgraph_node") == "citation"
+                    and event.get("metadata", {}).get("langgraph_node") == "citation"
                 ):
                     node_output = event["data"]["output"]
                     final_answer = node_output.get("final_answer", "")

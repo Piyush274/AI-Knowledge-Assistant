@@ -74,8 +74,8 @@ function MessageBubble({ message }) {
                   className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-950 border border-slate-800 text-[10px] rounded text-slate-400"
                 >
                   <span className="font-bold text-blue-400 font-mono">[{idx + 1}]</span>
-                  <span className="truncate max-w-[150px]" title={cit.document_name || cit.source_name}>
-                    {cit.document_name || cit.source_name || "Document"}
+                  <span className="truncate max-w-[150px]" title={cit.document_name || cit.filename || cit.source_name}>
+                    {cit.document_name || cit.filename || cit.source_name || "Document"}
                   </span>
                 </div>
               ))}

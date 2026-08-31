@@ -1,8 +1,10 @@
-# Import Regex using to find citations like [1][2]
 import re
+from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage
 from app.agents.graph import GraphState
+
+load_dotenv()
 
 
 # Citation agent does 
@@ -58,12 +60,18 @@ def citation_node(state:GraphState)->dict:
         for x in unique_nums:
             if 1 <= x <= len(docs):
                 doc = docs[x - 1]
+                snippet_text = doc.get("content", "")
+                filename = doc.get("filename", "Unknown")
                 citations_list.append(
                     {
                         "source_index": x,
                         "document_id": doc["document_id"],
-                        "filename": doc["filename"],
+                        "filename": filename,
+                        "document_name": filename,
+                        "source_name": filename,
                         "chunk_index": doc["chunk_index"],
+                        "text_snippet": snippet_text,
+                        "snippet": snippet_text,
                     }
                 )
 

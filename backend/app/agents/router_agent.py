@@ -1,8 +1,10 @@
-# BaseModel to create a structured response schema.
 from pydantic import BaseModel, Field
 from typing import Literal
+from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.agents.graph import GraphState
+
+load_dotenv()
 
 # Defines the format the LLM must return.
 class RouteQuery(BaseModel):

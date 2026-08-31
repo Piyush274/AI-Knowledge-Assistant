@@ -29,12 +29,12 @@ function CitationTooltip({ citation, index }) {
         
         {/* Document Title */}
         <span className="block text-xs font-bold text-slate-100 mb-1 truncate">
-          📄 {citation.document_name || citation.source_name || "Unknown File"}
+          📄 {citation.document_name || citation.filename || citation.source_name || "Unknown File"}
         </span>
 
         {/* Source Snippet Excerpt */}
         <span className="block text-[11px] text-slate-400 leading-relaxed max-h-32 overflow-y-auto pr-1">
-          "{citation.text_snippet || citation.snippet || "No source excerpt available."}"
+          "{citation.text_snippet || citation.snippet || citation.content || "No source excerpt available."}"
         </span>
 
         {/* Small arrow triangle pointing to badge */}

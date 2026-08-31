@@ -7,9 +7,10 @@ def retriever_node(state: GraphState) -> dict:
     db=sessionLocal()
     try:
         query=state["query"]
+        user_id = state.get("user_id")
         query_embedding=embeddings_client.embed_query(query)
 
-        chunks=search_similar_chunks(db, query_embedding, limit=5)
+        chunks=search_similar_chunks(db, query_embedding, limit=5, user_id=user_id)
 
         retrieved_docs=[]
         for chunk in chunks:

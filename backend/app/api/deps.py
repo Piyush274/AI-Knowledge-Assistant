@@ -11,11 +11,15 @@ from app.models.user import User
 # file houses shared dependency providers. Its primary responsibility is fetching the database session (get_db) and resolving/validating JWT tokens to extract the current authenticated user (get_current_user).
 # Trigger: Every time an API endpoint requires authentication or database access.
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Tells FastAPI where client should retrieve the token, and extracts authorization header
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
-SECRET_KEY = os.environ["SECRET_KEY"]
-ALGORITHM = os.environ["ALGORITHM"]
+SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret_key_for_development_only")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 
 def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
