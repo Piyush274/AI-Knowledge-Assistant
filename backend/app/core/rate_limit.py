@@ -1,10 +1,16 @@
 import os
-
-# Limiter is responsible for tracking how many requests a client makes.
+from dotenv import load_dotenv
+from fastapi import Request
 from slowapi import Limiter
 
-# get_remote_address is a function that is used to get the remote address (client IP address) of the client from incoming HTTP request.
-from slowapi.util import get_remote_address
+load_dotenv()
+
+def get_real_client_ip(request: Request) -> str:
+    # Extract client IP behind proxies (Render, Cloudflare, Vercel, AWS ALB)
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "127.0.0.1"
 
 # To get production url if dne then local running redis server
 REDIS_URL = os.getenv(
@@ -12,17 +18,9 @@ REDIS_URL = os.getenv(
     "redis://localhost:6379",
 )
 
-limiter=Limiter(
-
-    # Use the client's remote IP address as the rate-limit key, 192.168.1.10 → 20 requests/minute192.168.1.20 → 20 requests/minute
-    key_func=get_remote_address,
-
-    # Choosing where rate-limit data is stored
+limiter = Limiter(
+    key_func=get_real_client_ip,
     storage_uri=REDIS_URL,
-
-    # default_limits=["100/minute"]
-    default_limits=["100/minute"],
-
 )
 
 

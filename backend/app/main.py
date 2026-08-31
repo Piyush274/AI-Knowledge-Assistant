@@ -18,6 +18,8 @@ from slowapi import _rate_limit_exceeded_handler
 
 # Global limiter
 from app.core.rate_limit import limiter
+from fastapi.responses import JSONResponse
+from fastapi import Request
 
 # Initialize the main FastAPI application
 app = FastAPI(title="AI Knowledge Assistant API", version="1.0.0")
@@ -27,16 +29,23 @@ from app.db.session import engine
 from app.models import Base
 Base.metadata.create_all(bind=engine)
 
-# Attach limiter to application state object where application-wide objects can be stored
-app.state.limiter=limiter
+# Attach limiter to application state object
+app.state.limiter = limiter
 
-# Register the exception handler, RateLimitExceeded occurs, use _rate_limit_exceeded_handler to handle it
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Custom rate limit exception handler that returns structured JSON with CORS compatibility
+@app.exception_handler(RateLimitExceeded)
+def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please wait a moment before trying again."},
+    )
 
 # Configure CORS origins allowed to communicate with the API (React frontend)
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "https://ai-knowledge-assistant-sooty.vercel.app",
 ]
 
 # Allow dynamic origins from environment variables (e.g. Vercel domain)
@@ -44,8 +53,11 @@ allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
 if allowed_origins_env:
     origins.extend([origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()])
 
-# Allow dynamic origin regex from environment variable (default matches user's Vercel subdomains)
-cors_regex = os.getenv("CORS_ORIGIN_REGEX", r"https://ai-knowledge-assistant-.*\.vercel\.app")
+# Allow dynamic origin regex (matches any Vercel app domain and localhost ports)
+cors_regex = os.getenv(
+    "CORS_ORIGIN_REGEX",
+    r"^https://.*\.vercel\.app$|^https://.*\.onrender\.com$|^http://localhost(:\d+)?$|^http://127\.0\.0\.1(:\d+)?$"
+)
 if cors_regex == "":
     cors_regex = None
 
@@ -57,6 +69,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Register route prefixes
