@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, Users, FileStack, Zap, Clock, Activity, AlertCircle } from 'lucide-react'
 import AnalyticsChart from '../components/AnalyticsChart'
 import client from '../api/client'
 
@@ -35,10 +36,10 @@ function AnalyticsDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-[85vh] flex items-center justify-center bg-slate-950 text-slate-100 p-8 rounded-2xl border border-slate-900">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-slate-400 font-semibold text-sm">Loading System Metrics...</p>
+      <div className="flex-1 flex items-center justify-center bg-[#FAF8F5] text-[#1E1F24] p-8">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[#1E1F24] border-t-transparent rounded-full animate-spin" />
+          <p className="text-[#73716D] font-medium text-xs">Loading System Metrics...</p>
         </div>
       </div>
     )
@@ -46,143 +47,153 @@ function AnalyticsDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-[85vh] flex items-center justify-center bg-slate-950 text-slate-100 p-8 rounded-2xl border border-slate-900">
-        <div className="text-center space-y-4">
-          <span className="text-4xl">⚠️</span>
-          <p className="text-red-400 font-semibold">{error}</p>
+      <div className="flex-1 flex items-center justify-center bg-[#FAF8F5] text-[#1E1F24] p-8">
+        <div className="text-center space-y-3 bg-white p-6 rounded-2xl border border-[#E7E2D8]">
+          <AlertCircle className="w-8 h-8 text-rose-600 mx-auto" />
+          <p className="text-rose-700 font-medium text-sm">{error}</p>
+          <button
+            onClick={() => navigate('/chat')}
+            className="px-4 py-2 bg-[#1E1F24] text-white rounded-xl text-xs font-semibold"
+          >
+            Return to Chat
+          </button>
         </div>
       </div>
     )
   }
 
-  const { active_users, files_ingested, queries_24h, avg_latency, daily_stats, recent_activities } = data
+  const { active_users, files_ingested, queries_24h, avg_latency, daily_stats, recent_activities } = data || {}
 
   return (
-    <div className="min-h-[85vh] bg-slate-950 text-slate-100 p-4 md:p-8 rounded-2xl border border-slate-900 shadow-2xl relative">
-      
-      {/* Background radial soft light decoration */}
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 left-10 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="max-w-5xl mx-auto space-y-8 relative z-10">
+    <div className="flex-1 flex flex-col h-full bg-[#FAF8F5] text-[#1E1F24] overflow-y-auto p-6 lg:p-10 select-none">
+      <div className="max-w-5xl mx-auto w-full space-y-8">
         
-        {/* Page title header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
-              System Analytics & Performance
-            </h1>
-            <p className="text-sm text-slate-400">
-              Real-time monitoring panel for vector ingestion, search requests, and latency.
-            </p>
+        {/* Navigation */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate('/chat')}
+            className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#73716D] hover:text-[#1E1F24] transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Chat</span>
+          </button>
+
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white border border-[#E7E2D8] text-xs font-medium rounded-full text-[#1E1F24] shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live System Monitoring
           </div>
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-slate-800 text-xs font-semibold rounded-xl text-indigo-400 select-none">
-            <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-            Live Monitoring Mode
-          </div>
+        </div>
+
+        {/* Page Title */}
+        <div className="space-y-1">
+          <h1 className="text-3xl lg:text-4xl font-serif text-[#1C1C1F] tracking-tight">
+            System Analytics & Performance
+          </h1>
+          <p className="text-sm text-[#73716D]">
+            Real-time monitoring panel for vector ingestion, search requests, and latency.
+          </p>
         </div>
 
         {/* 4-Column KPI Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
           {/* Card 1: Users */}
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-xl space-y-2 select-none">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase tracking-wider">
+          <div className="bg-white border border-[#E7E2D8] rounded-2xl p-5 shadow-[0_4px_16px_rgba(0,0,0,0.02)] space-y-2">
+            <div className="flex items-center justify-between text-[#73716D] text-xs font-semibold uppercase tracking-wider">
               <span>Active Users</span>
-              <span className="text-lg">👥</span>
+              <Users className="w-4 h-4 text-[#73716D]" />
             </div>
-            <div className="text-2xl font-extrabold text-slate-100 font-mono">{active_users}</div>
-            <div className="text-[10px] text-emerald-450 font-semibold flex items-center gap-1">
-              <span>System-wide users</span>
+            <div className="text-3xl font-serif font-bold text-[#18191D]">{active_users || 0}</div>
+            <div className="text-[11px] text-emerald-700 font-medium">
+              System registered accounts
             </div>
           </div>
 
           {/* Card 2: Documents */}
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-xl space-y-2 select-none">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase tracking-wider">
+          <div className="bg-white border border-[#E7E2D8] rounded-2xl p-5 shadow-[0_4px_16px_rgba(0,0,0,0.02)] space-y-2">
+            <div className="flex items-center justify-between text-[#73716D] text-xs font-semibold uppercase tracking-wider">
               <span>Files Ingested</span>
-              <span className="text-lg">📚</span>
+              <FileStack className="w-4 h-4 text-[#73716D]" />
             </div>
-            <div className="text-2xl font-extrabold text-slate-100 font-mono">{files_ingested}</div>
-            <div className="text-[10px] text-emerald-450 font-semibold flex items-center gap-1">
-              <span>database chunks safe</span>
+            <div className="text-3xl font-serif font-bold text-[#18191D]">{files_ingested || 0}</div>
+            <div className="text-[11px] text-emerald-700 font-medium">
+              Vectorized knowledge chunks
             </div>
           </div>
 
           {/* Card 3: Query Volume */}
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-xl space-y-2 select-none">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase tracking-wider">
+          <div className="bg-white border border-[#E7E2D8] rounded-2xl p-5 shadow-[0_4px_16px_rgba(0,0,0,0.02)] space-y-2">
+            <div className="flex items-center justify-between text-[#73716D] text-xs font-semibold uppercase tracking-wider">
               <span>Queries (24h)</span>
-              <span className="text-lg">⚡</span>
+              <Zap className="w-4 h-4 text-[#E65F38]" />
             </div>
-            <div className="text-2xl font-extrabold text-slate-100 font-mono">{queries_24h}</div>
-            <div className="text-[10px] text-emerald-450 font-semibold flex items-center gap-1">
-              <span>active search queries</span>
+            <div className="text-3xl font-serif font-bold text-[#18191D]">{queries_24h || 0}</div>
+            <div className="text-[11px] text-emerald-700 font-medium">
+              Search & RAG generations
             </div>
           </div>
 
           {/* Card 4: Average Latency */}
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-xl space-y-2 select-none">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase tracking-wider">
+          <div className="bg-white border border-[#E7E2D8] rounded-2xl p-5 shadow-[0_4px_16px_rgba(0,0,0,0.02)] space-y-2">
+            <div className="flex items-center justify-between text-[#73716D] text-xs font-semibold uppercase tracking-wider">
               <span>Avg Latency</span>
-              <span className="text-lg">⏳</span>
+              <Clock className="w-4 h-4 text-[#73716D]" />
             </div>
-            <div className="text-2xl font-extrabold text-slate-100 font-mono">{avg_latency}ms</div>
-            <div className="text-[10px] text-emerald-450 font-semibold flex items-center gap-1">
-              <span>average retrieval response</span>
+            <div className="text-3xl font-serif font-bold text-[#18191D]">{avg_latency || 0}ms</div>
+            <div className="text-[11px] text-[#73716D] font-medium">
+              Average token generation time
             </div>
           </div>
 
         </div>
 
         {/* Chart Panel Section */}
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 backdrop-blur-xl space-y-4">
+        <div className="bg-white border border-[#E7E2D8] rounded-2xl p-6 shadow-[0_4px_16px_rgba(0,0,0,0.02)] space-y-4">
           <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 select-none">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-[#73716D] select-none">
               Request Frequency vs. Processing Delay
             </h2>
-            <p className="text-xs text-slate-500 mt-1 select-none">
-              Visual analytics matching daily user LLM requests with average token streaming response times.
+            <p className="text-xs text-[#8E8D98] mt-1 select-none">
+              Daily user chat queries matched with average token streaming response times.
             </p>
           </div>
           <AnalyticsChart data={daily_stats} />
         </div>
 
-        {/* Audit Log / Recent Events Table */}
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden backdrop-blur-xl">
-          <div className="px-6 py-4 border-b border-slate-850">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 select-none">
+        {/* Audit Log Table */}
+        <div className="bg-white border border-[#E7E2D8] rounded-2xl overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.02)]">
+          <div className="px-6 py-4 border-b border-[#F0EBE2]">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-[#73716D] select-none">
               Recent Event Audit Log
             </h2>
           </div>
           
-          <div className="divide-y divide-slate-850">
-            {recent_activities.length === 0 ? (
-              <div className="px-6 py-8 text-center text-sm text-slate-500 font-mono">
-                No events recorded yet. Perform chat queries or ingest files to see metrics.
+          <div className="divide-y divide-[#F0EBE2]">
+            {(!recent_activities || recent_activities.length === 0) ? (
+              <div className="px-6 py-8 text-center text-xs text-[#8E8D98] font-mono">
+                No events recorded yet. Perform chat queries or ingest files to see live metrics.
               </div>
             ) : (
               recent_activities.map((act) => (
                 <div 
                   key={act.id} 
-                  className="px-6 py-3.5 flex items-center justify-between hover:bg-slate-900/35 transition-colors"
+                  className="px-6 py-3.5 flex items-center justify-between hover:bg-[#FAF8F5] transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    {/* Icon badge matching event type */}
                     <span className="text-sm select-none">
                       {act.type === 'upload' ? '📤' : act.type === 'query' ? '💬' : act.type === 'signup' ? '👤' : '⚙️'}
                     </span>
                     <div>
-                      <p className="text-sm font-medium text-slate-200">
-                        <span className="text-blue-400 font-mono text-xs font-semibold mr-1">{act.user}</span>
+                      <p className="text-sm font-medium text-[#1E1F24]">
+                        <span className="text-[#E65F38] font-mono text-xs font-semibold mr-1.5">{act.user}</span>
                         {act.type === 'upload' ? 'triggered document ingestion' : act.type === 'query' ? 'executed chat query' : act.type === 'signup' ? 'created account' : 'performed operation'}
                       </p>
-                      <p className="text-xs text-slate-500 font-mono mt-0.5 max-w-[280px] sm:max-w-md truncate" title={act.target}>
+                      <p className="text-xs text-[#8E8D98] font-mono mt-0.5 max-w-[280px] sm:max-w-md truncate" title={act.target}>
                         {act.target}
                       </p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-mono text-slate-500 select-none whitespace-nowrap">
+                  <span className="text-[10px] font-mono text-[#8E8D98] select-none whitespace-nowrap">
                     {act.time}
                   </span>
                 </div>
@@ -197,3 +208,4 @@ function AnalyticsDashboard() {
 }
 
 export default AnalyticsDashboard
+

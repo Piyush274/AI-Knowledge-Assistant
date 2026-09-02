@@ -10,35 +10,23 @@ import {
   Legend
 } from 'recharts'
 
-// Mock daily metrics data (to be replaced by api data in Module 7)
-const analyticsMockData = [
-  { day: 'Mon', queries: 45, latency: 180, uploads: 12 },
-  { day: 'Tue', queries: 78, latency: 210, uploads: 8 },
-  { day: 'Wed', queries: 112, latency: 195, uploads: 15 },
-  { day: 'Thu', queries: 95, latency: 240, uploads: 6 },
-  { day: 'Fri', queries: 150, latency: 185, uploads: 22 },
-  { day: 'Sat', queries: 88, latency: 150, uploads: 4 },
-  { day: 'Sun', queries: 120, latency: 165, uploads: 18 }
-]
-
 /**
- * CustomTooltip designs the hover data panel to align with our slate dark theme.
+ * CustomTooltip for the warm minimalist aesthetic.
  */
 function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-2xl backdrop-blur-md text-xs space-y-1.5">
-        <p className="font-bold text-slate-100 mb-1 border-b border-slate-850 pb-1 font-mono">
+      <div className="bg-white border border-[#DDD8CF] rounded-xl p-3 shadow-xl text-xs space-y-1.5">
+        <p className="font-bold text-[#1E1F24] mb-1 border-b border-[#F0EBE2] pb-1 font-mono">
           📅 {label}day Statistics
         </p>
         {payload.map((item, index) => (
           <div key={index} className="flex items-center gap-4 justify-between">
-            <span className="flex items-center gap-1.5 text-slate-400">
-              {/* Color Dot indicator */}
+            <span className="flex items-center gap-1.5 text-[#73716D]">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
               {item.name}:
             </span>
-            <span className="font-bold font-mono text-slate-100">
+            <span className="font-bold font-mono text-[#1E1F24]">
               {item.value} {item.name === 'Latency' ? 'ms' : ''}
             </span>
           </div>
@@ -51,31 +39,29 @@ function CustomTooltip({ active, payload, label }) {
 
 function AnalyticsChart({ data }) {
   return (
-    <div className="w-full h-80 bg-slate-950/40 p-4 border border-slate-850 rounded-xl relative select-none">
+    <div className="w-full h-80 bg-[#FAF8F5] p-4 border border-[#E7E2D8] rounded-xl relative select-none">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={data || []}
           margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
         >
-          {/* Subtle grid lines */}
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#EBE7DF" vertical={false} />
           
           <XAxis 
             dataKey="day" 
-            stroke="#64748b" 
+            stroke="#8E8D98" 
             fontSize={11} 
             tickLine={false} 
             axisLine={false} 
           />
           
           <YAxis 
-            stroke="#64748b" 
+            stroke="#8E8D98" 
             fontSize={11} 
             tickLine={false} 
             axisLine={false} 
           />
           
-          {/* Styled hover tooltip */}
           <Tooltip content={<CustomTooltip />} />
           
           <Legend 
@@ -83,38 +69,35 @@ function AnalyticsChart({ data }) {
             height={36} 
             iconType="circle" 
             iconSize={8}
-            wrapperStyle={{ fontSize: '11px', color: '#94a3b8' }}
+            wrapperStyle={{ fontSize: '11px', color: '#55535C' }}
           />
 
-          {/* Gradients definitions for chart fills */}
           <defs>
             <linearGradient id="queriesGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
+              <stop offset="5%" stopColor="#E65F38" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="#E65F38" stopOpacity={0.0} />
             </linearGradient>
             <linearGradient id="latencyGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
+              <stop offset="5%" stopColor="#1E1F24" stopOpacity={0.2} />
+              <stop offset="95%" stopColor="#1E1F24" stopOpacity={0.0} />
             </linearGradient>
           </defs>
 
-          {/* Queries Area */}
           <Area
             type="monotone"
             dataKey="queries"
             name="Chat Queries"
-            stroke="#3b82f6"
+            stroke="#E65F38"
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#queriesGrad)"
           />
 
-          {/* Latency Area */}
           <Area
             type="monotone"
             dataKey="latency"
-            name="Latency"
-            stroke="#6366f1"
+            name="Latency (ms)"
+            stroke="#1E1F24"
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#latencyGrad)"
@@ -126,3 +109,4 @@ function AnalyticsChart({ data }) {
 }
 
 export default AnalyticsChart
+

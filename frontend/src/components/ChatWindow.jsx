@@ -1,129 +1,394 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { 
+  ArrowUp, 
+  Sparkles,
+  Check,
+  FileText,
+  Mic,
+  MicOff,
+  Loader2,
+  Square,
+  AlertTriangle,
+  RefreshCw,
+  X
+} from 'lucide-react'
 import { useChat } from '../hooks/useChat'
 import MessageBubble from './MessageBubble'
+import client from '../api/client'
 
 /**
- * ChatWindow manages the active chat messages, rendering the streaming
- * assistant responses, auto-scrolling, and sending new messages.
- * 
- * @param {string} props.sessionId - The active session UUID
+ * ChatWindow connects directly to real backend streaming SSE via useChat hook,
+ * handles Sarvam AI Speech-to-Text microphone recording, and displays quota limit warnings.
  */
-function ChatWindow({ sessionId }) {
-  // Use our streaming SSE hook to manage chat state
-  const { messages, sendMessage, isGenerating, error } = useChat(sessionId)
+function ChatWindow({ sessionId, onSessionTitleUpdated }) {
+  const { messages, sendMessage, isGenerating, isLoadingHistory, error } = useChat(sessionId)
   
-  // Local state for the input message text box
   const [inputText, setInputText] = useState('')
+  const [dismissQuotaError, setDismissQuotaError] = useState(false)
 
-  // Refs for auto-scrolling to the bottom of the container
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const streamRef = useRef(null)
+
+  // Message scroll refs
   const scrollContainerRef = useRef(null)
   const messagesEndRef = useRef(null)
 
-  // Scroll to bottom helper
+  // Auto scroll helper
   const scrollToBottom = (behavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior })
   }
 
-  // Auto-scroll when messages array length increases (new messages sent/received)
   useEffect(() => {
     scrollToBottom('smooth')
   }, [messages.length])
 
-  // Auto-scroll when assistant message content streams and updates text
   useEffect(() => {
     if (isGenerating && messages.length > 0) {
-      const lastMsg = messages[messages.length - 1]
-      if (lastMsg && lastMsg.role === 'assistant') {
-        scrollToBottom('auto') // Use 'auto' speed for fast streaming updates
-      }
+      scrollToBottom('auto')
     }
   }, [messages[messages.length - 1]?.content, isGenerating])
 
+  // Reset dismissed quota error on new session or query
+  useEffect(() => {
+    setDismissQuotaError(false)
+  }, [sessionId, error])
+
+  // Clean up media streams on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [])
+
+  // Start browser audio recording
+  const startRecording = async () => {
+    try {
+      audioChunksRef.current = []
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
+      })
+      mediaRecorderRef.current = mediaRecorder
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data)
+        }
+      }
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        
+        // Stop all audio stream tracks
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop())
+          streamRef.current = null
+        }
+
+        if (audioBlob.size === 0) {
+          setIsRecording(false)
+          return
+        }
+
+        // Send to backend for Sarvam AI transcription
+        try {
+          setIsTranscribing(true)
+          const formData = new FormData()
+          formData.append('file', audioBlob, 'speech.webm')
+          formData.append('language_code', 'en-IN')
+          formData.append('model', 'saarika:v2.5')
+
+          const res = await client.post('/speech/transcribe', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+
+          if (res.data?.transcript) {
+            setInputText((prev) => (prev ? `${prev} ${res.data.transcript}` : res.data.transcript))
+          }
+        } catch (transcribeErr) {
+          console.error('Transcription failed:', transcribeErr)
+          alert('Could not transcribe audio. Please try speaking again.')
+        } finally {
+          setIsTranscribing(false)
+          setIsRecording(false)
+        }
+      }
+
+      mediaRecorder.start(250) // collect chunks every 250ms
+      setIsRecording(true)
+    } catch (err) {
+      console.error('Microphone access denied or error:', err)
+      alert('Microphone permission is required to use voice input.')
+      setIsRecording(false)
+    }
+  }
+
+  // Stop browser audio recording
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+  }
+
+  // Handle Voice / Send button click
+  const handleVoiceOrSend = (e) => {
+    e.preventDefault()
+    if (inputText.trim()) {
+      handleSendSubmit(e)
+    } else if (isRecording) {
+      stopRecording()
+    } else {
+      startRecording()
+    }
+  }
+
   // Form submit handler
   const handleSendSubmit = async (e) => {
-    e.preventDefault()
+    e?.preventDefault()
     if (!inputText.trim() || isGenerating) return
 
     const textToSend = inputText
-    setInputText('') // Clear input immediately for better UX
+    setInputText('')
     await sendMessage(textToSend)
+    if (onSessionTitleUpdated) {
+      onSessionTitleUpdated()
+    }
   }
 
+  // Handle Enter key (Shift+Enter for newline)
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendSubmit(e)
+    }
+  }
+
+  const isQuotaError = Boolean(
+    error && (
+      error.type === 'quota' || 
+      (typeof error === 'string' && (error.includes('429') || error.toLowerCase().includes('quota'))) ||
+      (typeof error === 'object' && error.message && (String(error.message).includes('429') || String(error.message).toLowerCase().includes('quota')))
+    )
+  )
+  const errorMessage = error ? (typeof error === 'object' ? error.message || '' : String(error)) : ''
+
   return (
-    <div className="flex flex-col h-[78vh] bg-slate-900/40 border border-slate-800 rounded-2xl overflow-hidden backdrop-blur-xl relative">
+    <div className="flex flex-col h-full w-full justify-between overflow-hidden relative">
       
-      {/* Scrollable Message Container */}
+      {/* ─────────────────── REAL MESSAGE STREAM SCROLL CONTAINER ─────────────────── */}
       <div 
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent"
+        className="flex-1 overflow-y-auto px-1 sm:px-2 py-4 space-y-4 no-scrollbar"
       >
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center space-y-3 p-8 select-none">
-            <div className="text-4xl">💬</div>
-            <h3 className="text-lg font-bold text-slate-200">Start a Conversation</h3>
-            <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
-              Ask questions about your uploaded documents. The AI agent will search your database and cite its sources.
+        {isLoadingHistory ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-8 select-none my-auto">
+            <Loader2 className="w-8 h-8 animate-spin text-[#E65F38] mb-3" />
+            <span className="text-xs font-medium text-[#7A7882]">Loading conversation history...</span>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-8 select-none my-auto">
+            <div className="w-12 h-12 rounded-2xl bg-white border border-[#E0DBD0] flex items-center justify-center text-2xl shadow-sm mb-4">
+              ✨
+            </div>
+            <h3 className="font-serif text-2xl lg:text-3xl text-[#1E1F24]">What would you like to explore?</h3>
+            <p className="text-xs sm:text-sm text-[#7A7882] max-w-md mt-2 leading-relaxed">
+              Ask questions about your uploaded documents, search vector embeddings, or use the microphone to talk with Sarvam AI.
             </p>
+
+            {/* Quick suggested prompt buttons */}
+            <div className="flex flex-wrap gap-2 justify-center max-w-lg mt-6">
+              {[
+                "Summarize the key takeaways from my files",
+                "What are the main topics covered?",
+                "Extract important action items"
+              ].map((prompt, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setInputText(prompt)
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-[#F3EFE9] border border-[#E2DDD3] text-xs text-[#55535C] hover:text-[#1E1F24] transition-all shadow-sm cursor-pointer text-left"
+                >
+                  💡 {prompt}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
-          messages.map((msg) => (
-            <MessageBubble key={msg.id || msg.created_at} message={msg} />
-          ))
+          messages.map((msg, idx) => {
+            const isUser = msg.role === 'user'
+            const nextMsg = messages[idx + 1]
+            const isLastMsg = idx === messages.length - 1
+            const userHasNoAssistantReply = isUser && (!nextMsg || nextMsg.role === 'user')
+
+            return (
+              <React.Fragment key={msg.id || msg.created_at || idx}>
+                <MessageBubble 
+                  message={msg}
+                  isGenerating={isGenerating && isLastMsg && msg.role === 'assistant'}
+                  onRegenerate={() => {
+                    sendMessage(msg.content)
+                  }}
+                />
+                
+                {/* When a user query had no assistant response generated */}
+                {userHasNoAssistantReply && !isGenerating && (
+                  <div className="flex justify-start w-full my-2">
+                    <div className="flex items-center gap-3 py-2 px-3.5 bg-[#FAF5F0] border border-[#F0E4D8] rounded-2xl text-xs text-[#8A6D56] shadow-sm">
+                      <span>⚠️ No response generated.</span>
+                      <button
+                        type="button"
+                        onClick={() => sendMessage(msg.content)}
+                        className="font-semibold text-[#1E1F24] underline hover:text-[#E65F38] cursor-pointer"
+                      >
+                        Click to retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </React.Fragment>
+            )
+          })
         )}
 
-        {/* Live Generating/Typing State Indicator */}
-        {isGenerating && messages[messages.length - 1]?.content === '' && (
-          <div className="flex justify-start w-full animate-pulse">
-            <div className="bg-slate-900 border border-slate-800 text-slate-400 rounded-2xl px-4 py-2.5 shadow-lg">
-              <div className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 mb-1">
-                Assistant
+
+
+        {/* Quota Limit / Error Notification Card */}
+        {error && !dismissQuotaError && (
+          <div className={`p-4 rounded-2xl border shadow-sm my-3 select-none transition-all ${
+            isQuotaError 
+              ? 'bg-amber-50/90 border-amber-200 text-amber-900' 
+              : 'bg-rose-50 border-rose-200 text-rose-800'
+          }`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                {isQuotaError ? (
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                ) : (
+                  <span className="text-base">⚠️</span>
+                )}
+                <div>
+                  <h5 className="text-xs font-semibold uppercase tracking-wider">
+                    {isQuotaError ? 'Request Quota Limit Reached' : 'Query Processing Issue'}
+                  </h5>
+                  <p className="text-xs mt-1 leading-relaxed opacity-90">
+                    {errorMessage || 'Rate limit reached. Please wait a moment before sending another prompt.'}
+                  </p>
+                  {isQuotaError && (
+                    <p className="text-[11px] text-amber-700 font-medium mt-1.5">
+                      Limit: 20 queries/minute per user. Cooldown is active.
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 py-1 text-xs">
-                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
-                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce delay-75" />
-                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce delay-150" />
-                Thinking...
-              </div>
+              <button
+                onClick={() => setDismissQuotaError(true)}
+                className="p-1 hover:bg-black/5 rounded-lg transition-colors cursor-pointer text-current opacity-60 hover:opacity-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
         )}
 
-        {/* Error message boundary */}
-        {error && (
-          <div className="text-center p-2.5 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-lg select-none">
-            ⚠️ {error}
-          </div>
-        )}
-
-        {/* Anchor point to scroll to */}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input Box Form */}
-      <form 
-        onSubmit={handleSendSubmit}
-        className="p-4 border-t border-slate-800 bg-slate-950/80 backdrop-blur-md flex items-center gap-3 relative z-10"
-      >
-        <input
-          type="text"
-          placeholder="Ask a question about your files..."
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          disabled={isGenerating}
-          className="flex-1 px-4 py-3 bg-slate-900/60 border border-slate-850 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-50"
-        />
-        
-        <button
-          type="submit"
-          disabled={!inputText.trim() || isGenerating}
-          className="p-3 bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white rounded-xl shadow-md shadow-blue-500/15 disabled:opacity-50 disabled:pointer-events-none"
-        >
-          {/* Simple Lucide Send-like Arrow Icon */}
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
-          </svg>
-        </button>
-      </form>
+      {/* ─────────────────── CLEAN FLOATING PROMPT INPUT CARD ─────────────────── */}
+      <div className="pt-2 pb-1 shrink-0">
+        <div className="w-full bg-[#F3EFE9] border border-[#E2DDD3] rounded-[22px] p-3 shadow-[0_10px_25px_rgba(0,0,0,0.03)] focus-within:border-[#C5C0B5] transition-all">
+          
+          {/* Active Voice Recording / Transcribing Indicator Banner */}
+          {isRecording ? (
+            <div className="flex items-center justify-between px-3 py-2 bg-rose-50 border border-rose-200 rounded-xl mb-2 text-rose-800 animate-pulse">
+              <div className="flex items-center gap-2.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping" />
+                <span className="text-xs font-semibold">Listening... Speak into your microphone</span>
+              </div>
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-medium cursor-pointer transition-colors shadow-sm"
+              >
+                Stop & Transcribe
+              </button>
+            </div>
+          ) : isTranscribing ? (
+            <div className="flex items-center gap-2.5 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl mb-2 text-amber-800 text-xs font-medium">
+              <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+              <span>Transcribing voice with Sarvam AI (Saarika)...</span>
+            </div>
+          ) : null}
+
+          {/* Textarea / Input */}
+          <form onSubmit={handleSendSubmit}>
+            <textarea
+              rows={2}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isGenerating || isRecording || isTranscribing}
+              placeholder={isRecording ? "Listening..." : "Ask me anything or use the microphone....."}
+              className="w-full bg-transparent border-0 text-[#1E1F24] placeholder-[#8A8892] text-sm sm:text-[15px] focus:outline-none resize-none px-2 pt-1 pb-1 leading-relaxed"
+            />
+
+            {/* Bottom Row: Minimalist footer with Sarvam Voice / Action Button */}
+            <div className="flex items-center justify-between pt-1 px-1">
+              
+              <div className="flex items-center gap-2 text-[11px] text-[#8E8D98]">
+                <span className="font-mono opacity-80">AI Knowledge Assistant</span>
+              </div>
+
+              {/* Right Action: Soundwave Mic / Stop / Submit Circle Button */}
+              <button
+                type="button"
+                onClick={handleVoiceOrSend}
+                disabled={isGenerating || isTranscribing}
+                className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all cursor-pointer shrink-0 disabled:opacity-50 ${
+                  isRecording 
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse' 
+                    : 'bg-[#222328] hover:bg-[#16171B] text-white active:scale-95'
+                }`}
+                title={
+                  inputText.trim() 
+                    ? "Send message" 
+                    : isRecording 
+                      ? "Click to stop recording" 
+                      : "Click to record voice with Sarvam AI"
+                }
+              >
+                {inputText.trim() ? (
+                  <ArrowUp className="w-4 h-4 text-white" />
+                ) : isTranscribing ? (
+                  <Loader2 className="w-4 h-4 text-white animate-spin" />
+                ) : isRecording ? (
+                  <Square className="w-3.5 h-3.5 text-white fill-white" />
+                ) : (
+                  /* Soundwave Bars Icon matching screenshot */
+                  <div className="flex items-center gap-[2.5px] px-1">
+                    <span className="w-[2.5px] h-3 bg-white rounded-full" />
+                    <span className="w-[2.5px] h-5 bg-white rounded-full" />
+                    <span className="w-[2.5px] h-3.5 bg-white rounded-full" />
+                    <span className="w-[2.5px] h-4.5 bg-white rounded-full" />
+                    <span className="w-[2.5px] h-2.5 bg-white rounded-full" />
+                  </div>
+                )}
+              </button>
+
+            </div>
+          </form>
+
+        </div>
+      </div>
+
     </div>
   )
 }

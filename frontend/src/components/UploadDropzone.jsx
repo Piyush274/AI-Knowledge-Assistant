@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react'
+import { UploadCloud, FileText, CheckCircle2, AlertCircle } from 'lucide-react'
 import client from '../api/client'
 
 /**
@@ -16,7 +17,7 @@ function UploadDropzone({ onUploadSuccess }) {
   
   const fileInputRef = useRef(null)
 
-  // Drag over handlers to toggle border highlights
+  // Drag over handlers
   const handleDragOver = (e) => {
     e.preventDefault()
     setIsDragActive(true)
@@ -45,7 +46,6 @@ function UploadDropzone({ onUploadSuccess }) {
 
   // Upload file core logic
   const handleUpload = async (file) => {
-    // Basic frontend file type extension check (.txt, .md, .pdf, .docx)
     const allowedExtensions = ['.txt', '.md', '.pdf', '.docx']
     const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
 
@@ -54,20 +54,18 @@ function UploadDropzone({ onUploadSuccess }) {
       return
     }
 
-    // Clear previous state
     setError(null)
     setUploading(true)
     setProgress(0)
 
     const formData = new FormData()
-    formData.append('file', file) // Key name must match backend's parameter "file"
+    formData.append('file', file)
 
     try {
       await client.post('/documents/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        // Track progress percentage
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / progressEvent.total
@@ -76,7 +74,6 @@ function UploadDropzone({ onUploadSuccess }) {
         },
       })
 
-      // Trigger list refresh in parent page
       if (onUploadSuccess) {
         onUploadSuccess()
       }
@@ -88,7 +85,6 @@ function UploadDropzone({ onUploadSuccess }) {
     }
   }
 
-  // Programmatically click input file selector when box is clicked
   const handleBoxClick = () => {
     if (!uploading) {
       fileInputRef.current?.click()
@@ -103,12 +99,12 @@ function UploadDropzone({ onUploadSuccess }) {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={handleBoxClick}
-        className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[180px] ${
+        className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[190px] ${
           uploading ? 'pointer-events-none opacity-80' : ''
         } ${
           isDragActive
-            ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/5'
-            : 'border-slate-800 bg-slate-900/20 hover:bg-slate-900/40 hover:border-slate-700'
+            ? 'border-[#1E1F24] bg-[#EBE7DF] shadow-md'
+            : 'border-[#DDD8CF] bg-[#F7F4EE] hover:bg-[#F2EFE8] hover:border-[#B5B1A8]'
         }`}
       >
         {/* Hidden File Input */}
@@ -121,35 +117,34 @@ function UploadDropzone({ onUploadSuccess }) {
         />
 
         {/* Upload Icon / Spinner */}
-        <div className="text-3xl mb-3 select-none">
+        <div className="mb-3 select-none">
           {uploading ? (
-            <svg className="animate-spin h-8 w-8 text-blue-500 mx-auto" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <div className="w-10 h-10 border-2 border-[#1E1F24] border-t-transparent rounded-full animate-spin mx-auto" />
           ) : (
-            '📤'
+            <div className="w-12 h-12 rounded-2xl bg-white border border-[#DDD8CF] flex items-center justify-center text-[#1E1F24] shadow-sm">
+              <UploadCloud className="w-6 h-6 text-[#1E1F24]" />
+            </div>
           )}
         </div>
 
         {uploading ? (
           <div className="w-full max-w-xs space-y-2">
-            <p className="text-sm font-semibold text-slate-200">Uploading File...</p>
+            <p className="text-sm font-semibold text-[#1E1F24]">Uploading & Embedding...</p>
             {/* Progress Bar */}
-            <div className="w-full bg-slate-850 h-2 rounded-full overflow-hidden">
+            <div className="w-full bg-[#E5E0D6] h-2 rounded-full overflow-hidden">
               <div 
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-300"
+                className="bg-[#1E1F24] h-full rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-xs text-slate-400 font-mono">{progress}% complete</p>
+            <p className="text-xs text-[#7A7882] font-mono">{progress}% complete</p>
           </div>
         ) : (
           <div className="space-y-1.5 select-none">
-            <p className="text-sm font-bold text-slate-200">
-              Drag & Drop file here, or <span className="text-blue-400 hover:text-blue-300">browse</span>
+            <p className="text-sm font-semibold text-[#1E1F24]">
+              Drag & drop document here, or <span className="underline underline-offset-2">browse</span>
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#7A7882]">
               Supports PDF, Word (.docx), Markdown, or Text files up to 25MB
             </p>
           </div>
@@ -158,7 +153,7 @@ function UploadDropzone({ onUploadSuccess }) {
 
       {/* Error Message Box */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm text-center">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs text-center">
           {error}
         </div>
       )}
@@ -167,3 +162,4 @@ function UploadDropzone({ onUploadSuccess }) {
 }
 
 export default UploadDropzone
+

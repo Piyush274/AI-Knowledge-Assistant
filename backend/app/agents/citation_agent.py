@@ -1,3 +1,4 @@
+import os
 import re
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -6,6 +7,27 @@ from app.agents.graph import GraphState
 
 load_dotenv()
 
+MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "models/gemini-3.5-flash")
+
+def _extract_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                parts.append(str(item["text"]))
+            elif hasattr(item, "text"):
+                parts.append(str(getattr(item, "text")))
+            else:
+                parts.append(str(item))
+        return "".join(parts)
+    if isinstance(content, dict):
+        return str(content.get("text", content))
+    return str(content) if content is not None else ""
+
 
 # Citation agent does 
 # 1. Audits grounding check draft answer afainst retrieved documents, refines answer kind of Review
@@ -13,7 +35,7 @@ load_dotenv()
 
 def citation_node(state:GraphState)->dict:
     route = state.get("route")
-    draft = state.get("draft_answer", "")
+    draft = _extract_text(state.get("draft_answer", ""))
     docs = state.get("documents", [])
 
     # Direct chat path, no auditing needed
@@ -25,7 +47,7 @@ def citation_node(state:GraphState)->dict:
     else:
         # Retrieval path
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
+            model=MODEL_NAME,
             temperature=0
         )
 
@@ -48,7 +70,7 @@ def citation_node(state:GraphState)->dict:
             [SystemMessage(content=critic_prompt)]
         )
 
-        final_answer = response.content
+        final_answer = _extract_text(response.content)
         
         # Extract citation numbers like [1], [2]
         str_nums = re.findall(r"\[(\d+)\]", final_answer)
@@ -79,3 +101,4 @@ def citation_node(state:GraphState)->dict:
             "final_answer": final_answer,
             "citations": citations_list,
         }
+

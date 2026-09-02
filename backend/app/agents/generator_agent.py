@@ -1,3 +1,4 @@
+import os
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage
@@ -5,9 +6,30 @@ from app.agents.graph import GraphState
 
 load_dotenv()
 
+MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "models/gemini-3.5-flash")
+
+def _extract_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                parts.append(str(item["text"]))
+            elif hasattr(item, "text"):
+                parts.append(str(getattr(item, "text")))
+            else:
+                parts.append(str(item))
+        return "".join(parts)
+    if isinstance(content, dict):
+        return str(content.get("text", content))
+    return str(content) if content is not None else ""
+
 
 def generator_node(state: GraphState)->dict:
-    llm=ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.5)
+    llm=ChatGoogleGenerativeAI(model=MODEL_NAME, temperature=0.5)
 
     # In LangGraph, not every field is populated at every step, so use get to handle empty state fields and avoid error
     route=state["route"]
@@ -46,5 +68,6 @@ def generator_node(state: GraphState)->dict:
         response = llm.invoke(prompt_messages)
 
     return {
-        "draft_answer": response.content
+        "draft_answer": _extract_text(response.content)
     }
+

@@ -1,87 +1,361 @@
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { Copy, Check, RotateCw, Globe, ArrowUpRight, FileText, BookOpen, Volume2, VolumeX, Loader2 } from 'lucide-react'
 import CitationTooltip from './CitationTooltip'
+import client from '../api/client'
 
 /**
- * MessageBubble renders individual message bubbles (user or assistant).
- * For assistant messages, it parses citations (e.g. [1]) and wraps them with tooltips.
- * 
- * @param {Object} props.message - The message object containing { role, content, citations }
+ * Custom CodeBlock component with syntax container and copy button
  */
-function MessageBubble({ message }) {
-  const isUser = message.role === 'user'
+function CodeBlock({ language, value }) {
+  const [copied, setCopied] = useState(false)
 
-  // Render User Message Bubble
+  const handleCopy = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <div className="my-3 rounded-xl overflow-hidden border border-[#2D2E35] bg-[#1E1F24] text-[#E0DFE5] font-mono text-xs shadow-md">
+      <div className="flex items-center justify-between px-3.5 py-1.5 bg-[#282930] border-b border-[#35363F] text-[11px] text-[#A2A1AF]">
+        <span className="font-semibold uppercase tracking-wider">{language || 'code'}</span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3 h-3 text-emerald-400" />
+              <span className="text-emerald-400">Copied</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3 h-3" />
+              <span>Copy</span>
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="p-3.5 overflow-x-auto text-[13px] leading-relaxed text-[#F3F2F8]">
+        <code>{value}</code>
+      </pre>
+    </div>
+  )
+}
+
+/**
+ * MessageBubble renders user and assistant messages with full markdown formatting,
+ * ChatGPT-style typewriter cursor, RAG citations, and Sarvam TTS.
+ */
+function MessageBubble({ message, onRegenerate, isGenerating = false }) {
+  const isUser = message.role === 'user'
+  const [copied, setCopied] = useState(false)
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false)
+  const audioRef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  }, [])
+
+  const handleCopy = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(message.content || '')
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  // Handle Sarvam AI Text-to-Speech playback
+  const handleToggleSpeak = async () => {
+    if (isPlayingAudio) {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        setIsPlayingAudio(false)
+      }
+      return
+    }
+
+    if (audioRef.current) {
+      audioRef.current.play()
+      setIsPlayingAudio(true)
+      return
+    }
+
+    try {
+      setIsLoadingAudio(true)
+      const response = await client.post('/speech/synthesize', {
+        text: message.content,
+        target_language_code: 'en-IN',
+        speaker: 'priya'
+      })
+
+      if (response.data?.audio_base64) {
+        const audioSrc = `data:audio/wav;base64,${response.data.audio_base64}`
+        const audio = new Audio(audioSrc)
+        audioRef.current = audio
+
+        audio.onplay = () => setIsPlayingAudio(true)
+        audio.onended = () => setIsPlayingAudio(false)
+        audio.onpause = () => setIsPlayingAudio(false)
+        audio.onerror = () => {
+          setIsPlayingAudio(false)
+          setIsLoadingAudio(false)
+        }
+
+        await audio.play()
+      }
+    } catch (err) {
+      console.error('TTS synthesis error:', err)
+      alert('Failed to synthesize speech. Please try again.')
+    } finally {
+      setIsLoadingAudio(false)
+    }
+  }
+
+  // Render User Message Bubble (right-aligned pill)
   if (isUser) {
     return (
-      <div className="flex justify-end w-full">
-        <div className="max-w-[75%] bg-blue-600 border border-blue-500 text-white rounded-2xl px-4 py-2.5 shadow-md shadow-blue-500/10">
-          <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+      <div className="flex justify-end w-full my-2">
+        <div className="max-w-[85%] sm:max-w-[70%] bg-[#EFECE6] text-[#222328] border border-[#DDD8CF]/80 rounded-2xl px-5 py-3 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+          <p className="text-sm sm:text-[14.5px] font-normal leading-relaxed whitespace-pre-wrap">
+            {message.content}
+          </p>
         </div>
       </div>
     )
   }
 
-  // Render Assistant Message Bubble (with parsed citation numbers)
-  const parseContentWithCitations = (content, citations = []) => {
-    if (!content) return null
+  const hasCitations = message.citations && message.citations.length > 0
+  const citations = message.citations || []
 
-    // Regex to split on citation markers like [1], [2], etc.
-    const parts = content.split(/(\[\d+\])/g)
-
-    return parts.map((part, index) => {
-      // Check if this segment is a citation marker
-      const match = part.match(/^\[(\d+)\]$/)
-      if (match) {
-        const citationNumber = parseInt(match[1], 10)
-        
-        // Find matching citation object (1-based index mapped to 0-based array)
-        const citation = citations && citations[citationNumber - 1]
-
-        return (
-          <CitationTooltip
-            key={`cit-${index}`}
-            citation={citation}
-            index={citationNumber}
-          />
-        )
-      }
-
-      // Plain text segment
-      return part
-    })
-  }
+  // Pre-process citations in markdown text
+  const rawContent = message.content || ''
 
   return (
-    <div className="flex justify-start w-full">
-      <div className="max-w-[80%] bg-slate-900 border border-slate-800 text-slate-100 rounded-2xl px-4 py-2.5 shadow-lg relative">
-        <div className="text-xs font-semibold text-indigo-400 mb-1.5 uppercase tracking-wider select-none">
-          Assistant
-        </div>
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">
-          {parseContentWithCitations(message.content, message.citations)}
-        </p>
-
-        {/* Display citations card footer if citations list exists */}
-        {message.citations && message.citations.length > 0 && (
-          <div className="mt-3 pt-2.5 border-t border-slate-800 space-y-1 select-none">
-            <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500 block mb-1">
-              Sources & Citations:
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {message.citations.map((cit, idx) => (
-                <div 
-                  key={`footer-cit-${idx}`}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-950 border border-slate-800 text-[10px] rounded text-slate-400"
+    <div className="flex flex-col justify-start w-full my-3 text-[#1E1F24]">
+      <div className="max-w-full space-y-3">
+        
+        {/* Main Assistant Markdown Content or Loading / Fallback state */}
+        <div className="text-sm sm:text-[14.5px] leading-relaxed text-[#26272D]">
+          {rawContent.trim() ? (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({ children }) => (
+                  <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#18191D] mt-5 mb-2.5 tracking-tight">
+                    {children}
+                  </h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="font-serif text-xl sm:text-2xl font-semibold text-[#18191D] mt-4 mb-2 tracking-tight">
+                    {children}
+                  </h2>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="font-serif text-lg sm:text-xl font-semibold text-[#18191D] mt-3.5 mb-1.5 tracking-tight">
+                    {children}
+                  </h3>
+                ),
+                p: ({ children }) => (
+                  <p className="text-sm sm:text-[14.5px] leading-relaxed text-[#26272D] my-2 font-normal">
+                    {children}
+                  </p>
+                ),
+                ul: ({ children }) => (
+                  <ul className="list-disc list-outside ml-5 my-2.5 space-y-1 text-[#26272D] text-sm sm:text-[14.5px]">
+                    {children}
+                  </ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal list-outside ml-5 my-2.5 space-y-1 text-[#26272D] text-sm sm:text-[14.5px]">
+                    {children}
+                  </ol>
+                ),
+                li: ({ children }) => (
+                  <li className="leading-relaxed pl-1">{children}</li>
+                ),
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-[#141518]">{children}</strong>
+                ),
+                hr: () => <hr className="my-4 border-t border-[#E3DDD2]" />,
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-3 border-[#C8C2B6] pl-3.5 py-1.5 my-2.5 italic text-[#55535C] bg-[#F5F2EB] rounded-r-xl">
+                    {children}
+                  </blockquote>
+                ),
+                a: ({ href, children }) => (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#E65F38] underline underline-offset-2 hover:text-[#C54A25] font-medium"
+                  >
+                    {children}
+                  </a>
+                ),
+                code: ({ inline, className, children, ...props }) => {
+                  const match = /language-(\w+)/.exec(className || '')
+                  const codeString = String(children).replace(/\n$/, '')
+                  if (!inline && match) {
+                    return <CodeBlock language={match[1]} value={codeString} />
+                  }
+                  if (!inline && codeString.includes('\n')) {
+                    return <CodeBlock language="" value={codeString} />
+                  }
+                  return (
+                    <code className="px-1.5 py-0.5 bg-[#ECE7DE] text-[#1E1F24] font-mono text-xs rounded-md" {...props}>
+                      {children}
+                    </code>
+                  )
+                }
+              }}
+            >
+              {rawContent}
+            </ReactMarkdown>
+          ) : isGenerating ? (
+            /* Active Thinking Indicator */
+            <div className="flex items-center gap-2.5 py-2.5 px-4 bg-white border border-[#E7E2D8] rounded-2xl w-fit shadow-sm my-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#E65F38] animate-ping shrink-0" />
+              <span className="text-xs font-medium text-[#73716D]">Thinking & generating response...</span>
+              <span className="typewriter-cursor" />
+            </div>
+          ) : (
+            /* Fallback retry card when response is empty */
+            <div className="flex items-center gap-3 py-2.5 px-4 bg-[#FAF5F0] border border-[#F0E4D8] rounded-2xl text-xs text-[#8A6D56] w-fit my-1">
+              <span>No response generated.</span>
+              {onRegenerate && (
+                <button
+                  onClick={() => onRegenerate(message)}
+                  className="font-semibold text-[#1E1F24] underline hover:text-[#E65F38] cursor-pointer"
                 >
-                  <span className="font-bold text-blue-400 font-mono">[{idx + 1}]</span>
-                  <span className="truncate max-w-[150px]" title={cit.document_name || cit.filename || cit.source_name}>
-                    {cit.document_name || cit.filename || cit.source_name || "Document"}
-                  </span>
+                  Click to retry
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Typewriter Blinking Cursor while generating with text */}
+          {isGenerating && rawContent.trim() && (
+            <span className="typewriter-cursor" title="Typing..." />
+          )}
+        </div>
+
+        {/* Real Document Citation Cards */}
+        {hasCitations && (
+          <div className="pt-2 pb-1">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#7A7882] mb-2 flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-[#7A7882]" />
+              <span>Referenced Knowledge Sources ({citations.length})</span>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {citations.map((cit, idx) => (
+                <div
+                  key={`cit-card-${idx}`}
+                  className="bg-white rounded-2xl border border-[#E7E2D8] p-3.5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex flex-col justify-between space-y-2 hover:border-[#D5D0C5] transition-all"
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="font-mono text-xs font-bold text-[#E65F38] bg-[#FAF5F0] px-1.5 py-0.5 rounded shrink-0">
+                      [{idx + 1}]
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h5 className="text-xs font-semibold text-[#18191D] truncate" title={cit.document_name || cit.filename || cit.source_name || "Document"}>
+                        {cit.document_name || cit.filename || cit.source_name || "Document Source"}
+                      </h5>
+                      <p className="text-[11px] text-[#7A7882] line-clamp-2 leading-relaxed mt-1">
+                        "{cit.text_snippet || cit.snippet || cit.content || "Source excerpt retrieved for this query."}"
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#F4F1EA] flex items-center justify-between text-[10px] text-[#8E8D98]">
+                    <span className="font-mono truncate max-w-[140px]">
+                      {cit.filename || cit.document_name || "Knowledge Base"}
+                    </span>
+                    <span className="font-medium text-[#55535C]">Relevance match</span>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* Message Action Footer (Listen Aloud, Copy, Try again) */}
+        <div className="flex items-center justify-end gap-2 sm:gap-3 pt-1 text-[#7C7A85] select-none">
+          
+          {/* Sarvam AI Listen Aloud Button */}
+          {message.content && !isGenerating && (
+            <button
+              onClick={handleToggleSpeak}
+              disabled={isLoadingAudio}
+              className={`flex items-center gap-1.5 text-xs font-medium transition-colors px-2.5 py-1 rounded-md cursor-pointer ${
+                isPlayingAudio 
+                  ? 'bg-amber-100/70 text-amber-800' 
+                  : 'hover:text-[#1E1F24] hover:bg-[#EFEBE3]'
+              }`}
+              title={isPlayingAudio ? "Stop reading" : "Read aloud with Sarvam AI"}
+            >
+              {isLoadingAudio ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E65F38]" />
+                  <span>Loading voice...</span>
+                </>
+              ) : isPlayingAudio ? (
+                <>
+                  <VolumeX className="w-3.5 h-3.5 text-amber-700" />
+                  <span className="text-amber-800">Stop audio</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-3.5 h-3.5 text-[#E65F38]" />
+                  <span>Listen</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Copy Button */}
+          {message.content && !isGenerating && (
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 text-xs font-medium hover:text-[#1E1F24] transition-colors px-2 py-1 rounded-md hover:bg-[#EFEBE3] cursor-pointer"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-emerald-700">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Try Again / Regenerate Button */}
+          {onRegenerate && !isGenerating && (
+            <button
+              onClick={() => onRegenerate(message)}
+              className="flex items-center gap-1.5 text-xs font-medium hover:text-[#1E1F24] transition-colors px-2 py-1 rounded-md hover:bg-[#EFEBE3] cursor-pointer"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              <span>Try again</span>
+            </button>
+          )}
+        </div>
+
       </div>
     </div>
   )

@@ -10,23 +10,28 @@ import client from "../api/client";
 
 export function useChat(sessionId) {
 
-  //Stores the conversation
+  // Stores the conversation
   const [messages, setMessages] = useState([]);
 
-  //Shows whethere ai is currently responding, disables send button
+  // Loading state for fetching session history
+  const [isLoadingHistory, setIsLoadingHistory] = useState(Boolean(sessionId));
+
+  // Shows whether ai is currently responding, disables send button
   const [isGenerating, setIsGenerating] = useState(false);
 
-  //Stores error response
+  // Stores error response
   const [error, setError] = useState(null);
 
   // Fetch session messages history when sessionId changes
   useEffect(() => {
     if (!sessionId) {
       setMessages([]);
+      setIsLoadingHistory(false);
       return;
     }
 
     const fetchHistory = async () => {
+      setIsLoadingHistory(true);
       setIsGenerating(false);
       setError(null);
       try {
@@ -36,6 +41,8 @@ export function useChat(sessionId) {
       } catch (err) {
         console.error("Failed to load chat history:", err);
         setError("Could not load conversation history.");
+      } finally {
+        setIsLoadingHistory(false);
       }
     };
 
@@ -80,6 +87,21 @@ export function useChat(sessionId) {
       });
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const errData = await response.json().catch(() => ({}));
+          const quotaMsg = errData.detail || "Quota / Rate Limit Exceeded: Maximum 20 queries per minute allowed. Please wait a moment.";
+          setError({ type: 'quota', message: quotaMsg });
+          // Remove empty placeholder
+          setMessages((prev) => {
+            const updated = [...prev];
+            const lastMsg = updated[updated.length - 1];
+            if (lastMsg && lastMsg.role === "assistant" && lastMsg.content === "") {
+              updated.pop();
+            }
+            return updated;
+          });
+          return;
+        }
         throw new Error(`Server returned status ${response.status}`);
       }
 
@@ -121,6 +143,14 @@ export function useChat(sessionId) {
             try {
               const data = JSON.parse(dataStr);
 
+              if (data.error) {
+                const isQuota = data.error.includes("429") || data.error.toLowerCase().includes("quota") || data.error.includes("ResourceExhausted");
+                setError({
+                  type: isQuota ? 'quota' : 'general',
+                  message: isQuota ? "API Quota Limit reached. Please wait a moment before sending another question." : data.error
+                });
+              }
+
               // Update the last message in state with new tokens and citations
               setMessages((prev) => {
                 const updated = [...prev];
@@ -128,6 +158,9 @@ export function useChat(sessionId) {
                 if (lastMsg && lastMsg.role === "assistant") {
                   if (data.token) {
                     lastMsg.content += data.token;
+                  }
+                  if (data.final_answer) {
+                    lastMsg.content = data.final_answer;
                   }
                   if (data.citations) {
                     // Update or append citations
@@ -144,7 +177,7 @@ export function useChat(sessionId) {
       }
     } catch (err) {
       console.error("Stream reader error:", err);
-      setError("Failed to generate response. Please try again.");
+      setError({ type: 'general', message: "Failed to generate response. Please try again." });
 
       // Remove the empty placeholder if we encountered an error immediately
       setMessages((prev) => {
@@ -160,5 +193,5 @@ export function useChat(sessionId) {
     }
   };
 
-  return { messages, sendMessage, isGenerating, error };
+  return { messages, sendMessage, isGenerating, isLoadingHistory, error };
 }

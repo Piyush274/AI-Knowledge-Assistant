@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Login from './pages/Login'
 import ChatPage from './pages/ChatPage'
@@ -7,46 +7,30 @@ import DocumentsPage from './pages/DocumentsPage'
 import AnalyticsDashboard from './pages/AnalyticsDashboard'
 
 // Instantiate Query Client
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+})
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        {/* Premium Dark Glassmorphic Navigation Bar */}
-        <nav className="flex items-center justify-between px-6 py-4 bg-slate-900 border-b border-slate-850 sticky top-0 z-50 backdrop-blur-md bg-opacity-70 select-none">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">✨</span>
-            <span className="font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
-              AI Knowledge Assistant
-            </span>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <Link to="/" className="text-xs uppercase font-semibold tracking-wider text-slate-400 hover:text-slate-100 transition-colors">
-              Login
-            </Link>
-            <Link to="/chat" className="text-xs uppercase font-semibold tracking-wider text-slate-400 hover:text-slate-100 transition-colors">
-              Chat Room
-            </Link>
-            <Link to="/documents" className="text-xs uppercase font-semibold tracking-wider text-slate-400 hover:text-slate-100 transition-colors">
-              Ingest Files
-            </Link>
-            <Link to="/analytics" className="text-xs uppercase font-semibold tracking-wider text-slate-400 hover:text-slate-100 transition-colors">
-              Analytics
-            </Link>
-          </div>
-        </nav>
-
-        <main className="bg-slate-950 min-h-screen text-slate-100 p-4 md:p-6">
+        <div className="h-screen w-screen flex flex-col bg-[#FAF8F5] text-[#1E1F24] font-sans selection:bg-[#1E1F24] selection:text-white overflow-hidden">
           <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/analytics" element={<AnalyticsDashboard />} />
+            <Route path="*" element={<Navigate to="/chat" replace />} />
           </Routes>
-        </main>
+        </div>
       </BrowserRouter>
     </QueryClientProvider>
   )
 }
+

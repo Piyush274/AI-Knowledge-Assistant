@@ -2,11 +2,11 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Import route handlers from the API layer
 from app.api.routes.auth import router as auth_router
 from app.api.routes.documents import router as documents_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.analytics import router as analytics_router
+from app.api.routes.speech import router as speech_router
 
 # Rate limiter
 
@@ -79,6 +79,7 @@ app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(documents_router, prefix="/documents", tags=["Documents"])
 app.include_router(chat_router, prefix="/chat", tags=["Chat"])
 app.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
+app.include_router(speech_router, prefix="/speech", tags=["Speech"])
 
 # Simple health check endpoint for monitoring app status
 @app.get("/health")

@@ -56,13 +56,74 @@ def get_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    
     session=db.query(Conversation).filter(Conversation.id==session_id, Conversation.user_id==current_user.id).first()
 
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
     return session
+
+
+# Update session title
+@router.patch("/sessions/{session_id}", response_model=SessionResponse)
+def update_session(
+    session_id: str,
+    session_in: SessionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    session = db.query(Conversation).filter(
+        Conversation.id == session_id,
+        Conversation.user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    
+    if session_in.title:
+        session.title = session_in.title.strip()
+        db.commit()
+        db.refresh(session)
+    return session
+
+
+# Delete chat session
+@router.delete("/sessions/{session_id}")
+def delete_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    session = db.query(Conversation).filter(
+        Conversation.id == session_id,
+        Conversation.user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete()
+    db.delete(session)
+    db.commit()
+    return {"detail": "Session deleted successfully"}
+
+
+def _extract_text_content(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                parts.append(str(item["text"]))
+            elif hasattr(item, "text"):
+                parts.append(str(getattr(item, "text")))
+            else:
+                parts.append(str(item))
+        return "".join(parts)
+    if isinstance(content, dict):
+        return str(content.get("text", content))
+    return str(content) if content is not None else ""
 
 
 # Send Message & Stream SSE
@@ -91,6 +152,13 @@ async def send_message(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         )
+
+    # Automatically update session title with the first question if default/unnamed
+    if not session.title or session.title == "New Chat" or session.title.startswith("Conversation"):
+        first_q = message_in.content.strip().split("\n")[0]
+        if len(first_q) > 40:
+            first_q = first_q[:37] + "..."
+        session.title = first_q
 
     # Save user message to database
     user_msg = ChatMessage(
@@ -141,41 +209,61 @@ async def send_message(
         try:
             # Stream events from LangGraph
             async for event in agent_app.astream_events(inputs, version="v2"):
+                node_name = event.get("metadata", {}).get("langgraph_node")
                 
-                # Filter for text tokens exclusively from the generator node to prevent router/critic token leak
+                # Filter for text tokens exclusively from the generator node
                 if (
                     event["event"] == "on_chat_model_stream"
-                    and event.get("metadata", {}).get("langgraph_node") == "generator"
+                    and node_name == "generator"
                 ):
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
-                        token = chunk.content
-                        # SSE requires blank line after every event
-                        yield f"data: {json.dumps({'token': token})}\n\n"
+                        token = _extract_text_content(chunk.content)
+                        if token:
+                            yield f"data: {json.dumps({'token': token})}\n\n"
+
+                # Capture generator node output as draft answer fallback
+                elif (
+                    event["event"] == "on_chain_end"
+                    and node_name == "generator"
+                ):
+                    gen_out = event.get("data", {}).get("output", {})
+                    if isinstance(gen_out, dict):
+                        draft = _extract_text_content(gen_out.get("draft_answer") or gen_out.get("final_answer") or "")
+                        if draft and not final_answer:
+                            final_answer = draft
 
                 # Capture final answer and citations when the citation critic node ends
                 elif (
                     event["event"] == "on_chain_end"
-                    and event.get("metadata", {}).get("langgraph_node") == "citation"
+                    and node_name == "citation"
                 ):
-                    node_output = event["data"]["output"]
-                    final_answer = node_output.get("final_answer", "")
-                    citations = node_output.get("citations", [])
+                    node_output = event.get("data", {}).get("output", {})
+                    if isinstance(node_output, dict):
+                        ans = _extract_text_content(node_output.get("final_answer") or node_output.get("draft_answer") or "")
+                        if ans:
+                            final_answer = ans
+                        citations = node_output.get("citations", [])
+
+            final_text = _extract_text_content(final_answer)
+            if not final_text:
+                final_text = "I'm here to assist you! How can I help you with your knowledge base today?"
 
             # Write the assistant's final response to the database
             assistant_msg = ChatMessage(
                 session_id=session.id,
                 role="assistant",
-                content=final_answer,
+                content=final_text,
             )
             db.add(assistant_msg)
             db.commit()
 
             # Yield done signal and citations metadata
-            yield f"data: {json.dumps({'done': True, 'citations': citations})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'final_answer': final_text, 'citations': citations})}\n\n"
 
         except Exception as e:
             success = False
+            db.rollback()
             print(f"Streaming error: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:

@@ -1,3 +1,4 @@
+import os
 from pydantic import BaseModel, Field
 from typing import Literal
 from dotenv import load_dotenv
@@ -5,6 +6,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from app.agents.graph import GraphState
 
 load_dotenv()
+
+MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "models/gemini-3.5-flash")
 
 # Defines the format the LLM must return.
 class RouteQuery(BaseModel):
@@ -14,7 +17,7 @@ class RouteQuery(BaseModel):
     )
 
 # temperature=0 makes routing more consistent.
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+llm = ChatGoogleGenerativeAI(model=MODEL_NAME, temperature=0)
 
 # Bind the schema
 structured_llm = llm.with_structured_output(RouteQuery)
