@@ -1,9 +1,12 @@
 import os
 import re
+from typing import TYPE_CHECKING, Any
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage
-from app.agents.graph import GraphState
+from langchain_core.messages import SystemMessage, HumanMessage
+
+if TYPE_CHECKING:
+    from app.agents.graph import GraphState
 
 load_dotenv()
 
@@ -29,20 +32,20 @@ def _extract_text(content) -> str:
     return str(content) if content is not None else ""
 
 
-# Citation agent does 
-# 1. Audits grounding check draft answer afainst retrieved documents, refines answer kind of Review
-# 2. Extracts citaion metadata  parses the final answer to find all referenced markers (e.g. [1]) and extracts their corresponding document details (document ID, filename, chunk index) from the state
+# Citation agent:
+# 1. Audits grounding: checks draft answer against retrieved documents, refines answer, and removes hallucinations.
+# 2. Extracts citation metadata: parses the final answer to find all referenced markers (e.g. [1], [2], [1, 2]) and maps them to document details.
 
-def citation_node(state:GraphState)->dict:
+def citation_node(state: Any) -> dict:
     route = state.get("route")
     draft = _extract_text(state.get("draft_answer", ""))
     docs = state.get("documents", [])
 
-    # Direct chat path, no auditing needed
-    if route=="direct" or not docs:
+    # Direct chat path or no documents retrieved, no auditing needed
+    if route == "direct" or not docs or not draft.strip():
         return {
             "final_answer": draft,
-            "citations":[]
+            "citations": []
         }
     else:
         # Retrieval path
@@ -56,27 +59,37 @@ def citation_node(state:GraphState)->dict:
         for index, doc in enumerate(docs, start=1):
             context_str += f"Source [{index}] (File: {doc['filename']}):\n{doc['content']}\n\n"
         
-        critic_prompt = (
-            "You are an expert editor and fact checker.\n"
-            "Review the draft answer using ONLY the provided sources.\n"
-            "Remove any unsupported or hallucinated claims.\n"
-            "Do not add new information.\n"
-            "Preserve inline citations like [1], [2].\n\n"
-            f"Sources:\n{context_str}\n\n"
-            f"Draft Answer:\n{draft}"
+        critic_system = (
+            "You are an expert editor and fact checker. "
+            "Review the draft answer using ONLY the provided sources. "
+            "Remove any unsupported or hallucinated claims. "
+            "Do not add new information. "
+            "Preserve inline citations like [1], [2], [1, 2]."
         )
+        critic_user = f"Sources:\n{context_str}\n\nDraft Answer:\n{draft}"
 
-        response = llm.invoke(
-            [SystemMessage(content=critic_prompt)]
-        )
-
-        final_answer = _extract_text(response.content)
+        try:
+            response = llm.invoke([
+                SystemMessage(content=critic_system),
+                HumanMessage(content=critic_user)
+            ])
+            final_answer = _extract_text(response.content)
+            if not final_answer or not final_answer.strip():
+                final_answer = draft
+        except Exception as err:
+            print(f"Citation critic warning: {err}, falling back to draft answer")
+            final_answer = draft
         
-        # Extract citation numbers like [1], [2]
-        str_nums = re.findall(r"\[(\d+)\]", final_answer)
+        # Extract citation numbers like [1], [2], [1, 2], [2, 4]
+        matches = re.findall(r"\[([\d\s,]+)\]", final_answer)
+        unique_nums = set()
+        for match in matches:
+            for num_str in match.split(','):
+                num_str = num_str.strip()
+                if num_str.isdigit():
+                    unique_nums.add(int(num_str))
         
-        # Convert to unique sorted integer numbers
-        unique_nums = sorted(list(set(int(num) for num in str_nums)))
+        unique_nums = sorted(list(unique_nums))
         
         citations_list = []
         for x in unique_nums:
@@ -87,11 +100,11 @@ def citation_node(state:GraphState)->dict:
                 citations_list.append(
                     {
                         "source_index": x,
-                        "document_id": doc["document_id"],
+                        "document_id": doc.get("document_id"),
                         "filename": filename,
                         "document_name": filename,
                         "source_name": filename,
-                        "chunk_index": doc["chunk_index"],
+                        "chunk_index": doc.get("chunk_index", x),
                         "text_snippet": snippet_text,
                         "snippet": snippet_text,
                     }
@@ -101,4 +114,3 @@ def citation_node(state:GraphState)->dict:
             "final_answer": final_answer,
             "citations": citations_list,
         }
-
