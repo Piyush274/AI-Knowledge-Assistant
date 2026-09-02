@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Copy, Check, RotateCw, Globe, ArrowUpRight, FileText, BookOpen, Volume2, VolumeX, Loader2 } from 'lucide-react'
+import { Copy, Check, RotateCw, BookOpen, Volume2, VolumeX, Loader2, Sparkles, ExternalLink } from 'lucide-react'
 import CitationTooltip from './CitationTooltip'
 import client from '../api/client'
 
@@ -48,10 +48,68 @@ function CodeBlock({ language, value }) {
 }
 
 /**
- * MessageBubble renders user and assistant messages with full markdown formatting,
- * ChatGPT-style typewriter cursor, RAG citations, and Sarvam TTS.
+ * Helper to recursively parse string nodes and replace inline citations [1], [2], [1, 2]
+ * with interactive CitationTooltip pills.
  */
-function MessageBubble({ message, onRegenerate, isGenerating = false }) {
+function parseChildrenWithCitations(children, citations, onSelectCitation) {
+  if (!children) return children
+
+  if (typeof children === 'string') {
+    const parts = children.split(/(\[\d+(?:\s*,\s*\d+)*\])/g)
+    if (parts.length === 1) return children
+
+    return parts.map((part, index) => {
+      const match = part.match(/^\[([\d\s,]+)\]$/)
+      if (match) {
+        const nums = match[1].split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+        return (
+          <span key={`inline-cit-group-${index}`} className="inline-flex items-center gap-0.5">
+            {nums.map((citationNum, subIdx) => {
+              const matchedCit = citations?.find(c => (c.source_index === citationNum)) || citations?.[citationNum - 1] || { source_index: citationNum }
+              return (
+                <CitationTooltip
+                  key={`inline-cit-${index}-${citationNum}-${subIdx}`}
+                  citation={matchedCit}
+                  index={citationNum}
+                  onClick={onSelectCitation}
+                />
+              )
+            })}
+          </span>
+        )
+      }
+      return part
+    })
+  }
+
+  if (Array.isArray(children)) {
+    return children.map((child, idx) => {
+      if (typeof child === 'string') {
+        return parseChildrenWithCitations(child, citations, onSelectCitation)
+      }
+      return React.isValidElement(child) && child.props?.children
+        ? React.cloneElement(child, {
+            key: child.key || `child-${idx}`,
+            children: parseChildrenWithCitations(child.props.children, citations, onSelectCitation)
+          })
+        : child
+    })
+  }
+
+  if (React.isValidElement(children) && children.props?.children) {
+    return React.cloneElement(children, {
+      children: parseChildrenWithCitations(children.props.children, citations, onSelectCitation)
+    })
+  }
+
+  return children
+}
+
+/**
+ * MessageBubble renders user and assistant messages with full markdown formatting,
+ * interactive inline citation pills, NotebookLM source drawer inspection, and Sarvam TTS.
+ */
+function MessageBubble({ message, onRegenerate, isGenerating = false, onSelectCitation }) {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
@@ -137,15 +195,13 @@ function MessageBubble({ message, onRegenerate, isGenerating = false }) {
 
   const hasCitations = message.citations && message.citations.length > 0
   const citations = message.citations || []
-
-  // Pre-process citations in markdown text
   const rawContent = message.content || ''
 
   return (
     <div className="flex flex-col justify-start w-full my-3 text-[#1E1F24]">
       <div className="max-w-full space-y-3">
         
-        {/* Main Assistant Markdown Content or Loading / Fallback state */}
+        {/* Main Assistant Markdown Content */}
         <div className="text-sm sm:text-[14.5px] leading-relaxed text-[#26272D]">
           {rawContent.trim() ? (
             <ReactMarkdown
@@ -153,22 +209,22 @@ function MessageBubble({ message, onRegenerate, isGenerating = false }) {
               components={{
                 h1: ({ children }) => (
                   <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#18191D] mt-5 mb-2.5 tracking-tight">
-                    {children}
+                    {parseChildrenWithCitations(children, citations, onSelectCitation)}
                   </h1>
                 ),
                 h2: ({ children }) => (
                   <h2 className="font-serif text-xl sm:text-2xl font-semibold text-[#18191D] mt-4 mb-2 tracking-tight">
-                    {children}
+                    {parseChildrenWithCitations(children, citations, onSelectCitation)}
                   </h2>
                 ),
                 h3: ({ children }) => (
                   <h3 className="font-serif text-lg sm:text-xl font-semibold text-[#18191D] mt-3.5 mb-1.5 tracking-tight">
-                    {children}
+                    {parseChildrenWithCitations(children, citations, onSelectCitation)}
                   </h3>
                 ),
                 p: ({ children }) => (
                   <p className="text-sm sm:text-[14.5px] leading-relaxed text-[#26272D] my-2 font-normal">
-                    {children}
+                    {parseChildrenWithCitations(children, citations, onSelectCitation)}
                   </p>
                 ),
                 ul: ({ children }) => (
@@ -182,15 +238,19 @@ function MessageBubble({ message, onRegenerate, isGenerating = false }) {
                   </ol>
                 ),
                 li: ({ children }) => (
-                  <li className="leading-relaxed pl-1">{children}</li>
+                  <li className="leading-relaxed pl-1">
+                    {parseChildrenWithCitations(children, citations, onSelectCitation)}
+                  </li>
                 ),
                 strong: ({ children }) => (
-                  <strong className="font-semibold text-[#141518]">{children}</strong>
+                  <strong className="font-semibold text-[#141518]">
+                    {parseChildrenWithCitations(children, citations, onSelectCitation)}
+                  </strong>
                 ),
                 hr: () => <hr className="my-4 border-t border-[#E3DDD2]" />,
                 blockquote: ({ children }) => (
                   <blockquote className="border-l-3 border-[#C8C2B6] pl-3.5 py-1.5 my-2.5 italic text-[#55535C] bg-[#F5F2EB] rounded-r-xl">
-                    {children}
+                    {parseChildrenWithCitations(children, citations, onSelectCitation)}
                   </blockquote>
                 ),
                 a: ({ href, children }) => (
@@ -250,42 +310,59 @@ function MessageBubble({ message, onRegenerate, isGenerating = false }) {
           )}
         </div>
 
-        {/* Real Document Citation Cards */}
+        {/* Real Document Citation Cards with Click-to-Inspect */}
         {hasCitations && (
           <div className="pt-2 pb-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#7A7882] mb-2 flex items-center gap-1.5">
-              <BookOpen className="w-3.5 h-3.5 text-[#7A7882]" />
-              <span>Referenced Knowledge Sources ({citations.length})</span>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#7A7882] mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-[#E65F38]" />
+                <span>Referenced Knowledge Sources ({citations.length})</span>
+              </div>
+              <span className="text-[10px] text-[#8E8D98] normal-case hidden sm:inline">
+                Click any source to inspect full context
+              </span>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {citations.map((cit, idx) => (
-                <div
-                  key={`cit-card-${idx}`}
-                  className="bg-white rounded-2xl border border-[#E7E2D8] p-3.5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex flex-col justify-between space-y-2 hover:border-[#D5D0C5] transition-all"
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="font-mono text-xs font-bold text-[#E65F38] bg-[#FAF5F0] px-1.5 py-0.5 rounded shrink-0">
-                      [{idx + 1}]
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <h5 className="text-xs font-semibold text-[#18191D] truncate" title={cit.document_name || cit.filename || cit.source_name || "Document"}>
-                        {cit.document_name || cit.filename || cit.source_name || "Document Source"}
-                      </h5>
-                      <p className="text-[11px] text-[#7A7882] line-clamp-2 leading-relaxed mt-1">
-                        "{cit.text_snippet || cit.snippet || cit.content || "Source excerpt retrieved for this query."}"
-                      </p>
+              {citations.map((cit, idx) => {
+                const sourceNum = cit.source_index || (idx + 1)
+                const docName = cit.document_name || cit.filename || cit.source_name || "Document Source"
+                const snippetText = cit.text_snippet || cit.snippet || cit.content || "Source excerpt retrieved for this query."
+
+                return (
+                  <div
+                    key={`cit-card-${idx}`}
+                    onClick={() => {
+                      if (onSelectCitation) onSelectCitation(cit)
+                    }}
+                    className="group bg-white hover:bg-[#FAF8F5] rounded-2xl border border-[#E7E2D8] hover:border-[#FFB049]/60 p-3.5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between space-y-2 transition-all cursor-pointer select-none"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="font-mono text-xs font-bold text-[#E65F38] bg-[#FAF5F0] group-hover:bg-[#E65F38] group-hover:text-white px-1.5 py-0.5 rounded shrink-0 transition-colors">
+                        [{sourceNum}]
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h5 className="text-xs font-semibold text-[#18191D] truncate group-hover:text-[#E65F38] transition-colors" title={docName}>
+                          {docName}
+                        </h5>
+                        <p className="text-[11px] text-[#7A7882] line-clamp-2 leading-relaxed mt-1">
+                          "{snippetText}"
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-[#F4F1EA] flex items-center justify-between text-[10px] text-[#8E8D98]">
+                      <span className="font-mono truncate max-w-[130px]">
+                        Chunk #{cit.chunk_index !== undefined ? cit.chunk_index : sourceNum}
+                      </span>
+                      <span className="flex items-center gap-1 font-semibold text-[#FF7B59] group-hover:underline">
+                        <span>Inspect</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </span>
                     </div>
                   </div>
-
-                  <div className="pt-2 border-t border-[#F4F1EA] flex items-center justify-between text-[10px] text-[#8E8D98]">
-                    <span className="font-mono truncate max-w-[140px]">
-                      {cit.filename || cit.document_name || "Knowledge Base"}
-                    </span>
-                    <span className="font-medium text-[#55535C]">Relevance match</span>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

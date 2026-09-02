@@ -15,6 +15,7 @@ class MessageResponse(BaseModel):
     session_id: UUID
     role: str
     content: str
+    citations: list[dict] | None = None
     created_at: datetime
 
     model_config = {

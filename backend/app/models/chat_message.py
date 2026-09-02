@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Uuid,  DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import JSONB
 
 import uuid
 
@@ -16,6 +17,7 @@ class ChatMessage(Base):
     session_id=Column(Uuid, ForeignKey("conversations.id"),nullable=False)
     role=Column(String, nullable=False) # "user" or "assistant"
     content=Column(String, nullable=False)
+    citations=Column(JSONB, default=list, nullable=True)
     created_at=Column(DateTime(timezone=True),server_default=func.now())
 
     #Define the relationship back to the conversation thread

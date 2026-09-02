@@ -254,6 +254,7 @@ async def send_message(
                 session_id=session.id,
                 role="assistant",
                 content=final_text,
+                citations=citations,
             )
             db.add(assistant_msg)
             db.commit()

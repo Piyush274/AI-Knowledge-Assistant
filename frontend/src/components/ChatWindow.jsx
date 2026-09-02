@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useChat } from '../hooks/useChat'
 import MessageBubble from './MessageBubble'
+import SourceInspectorDrawer from './SourceInspectorDrawer'
 import client from '../api/client'
 
 /**
@@ -25,6 +26,7 @@ function ChatWindow({ sessionId, onSessionTitleUpdated }) {
   
   const [inputText, setInputText] = useState('')
   const [dismissQuotaError, setDismissQuotaError] = useState(false)
+  const [inspectedCitation, setInspectedCitation] = useState(null)
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false)
@@ -234,8 +236,12 @@ function ChatWindow({ sessionId, onSessionTitleUpdated }) {
                 <MessageBubble 
                   message={msg}
                   isGenerating={isGenerating && isLastMsg && msg.role === 'assistant'}
+                  onSelectCitation={(cit) => setInspectedCitation(cit)}
                   onRegenerate={() => {
-                    sendMessage(msg.content)
+                    const promptToRetry = msg.role === 'user' 
+                      ? msg.content 
+                      : (messages.slice(0, idx).reverse().find(m => m.role === 'user')?.content || msg.content)
+                    sendMessage(promptToRetry)
                   }}
                 />
                 
@@ -388,6 +394,12 @@ function ChatWindow({ sessionId, onSessionTitleUpdated }) {
 
         </div>
       </div>
+
+      {/* NotebookLM-Style Source Inspector Drawer */}
+      <SourceInspectorDrawer 
+        citation={inspectedCitation}
+        onClose={() => setInspectedCitation(null)}
+      />
 
     </div>
   )
