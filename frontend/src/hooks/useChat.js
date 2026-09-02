@@ -30,6 +30,14 @@ export function useChat(sessionId) {
       return;
     }
 
+    // If it's a temporary optimistic session, initialize empty state immediately without network delay
+    if (typeof sessionId === 'string' && sessionId.startsWith('temp-')) {
+      setMessages([]);
+      setIsLoadingHistory(false);
+      setError(null);
+      return;
+    }
+
     const fetchHistory = async () => {
       setIsLoadingHistory(true);
       setIsGenerating(false);
