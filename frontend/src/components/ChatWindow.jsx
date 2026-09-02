@@ -244,22 +244,6 @@ function ChatWindow({ sessionId, onSessionTitleUpdated }) {
                     sendMessage(promptToRetry)
                   }}
                 />
-                
-                {/* When a user query had no assistant response generated */}
-                {userHasNoAssistantReply && !isGenerating && (
-                  <div className="flex justify-start w-full my-2">
-                    <div className="flex items-center gap-3 py-2 px-3.5 bg-[#FAF5F0] border border-[#F0E4D8] rounded-2xl text-xs text-[#8A6D56] shadow-sm">
-                      <span>⚠️ No response generated.</span>
-                      <button
-                        type="button"
-                        onClick={() => sendMessage(msg.content)}
-                        className="font-semibold text-[#1E1F24] underline hover:text-[#E65F38] cursor-pointer"
-                      >
-                        Click to retry
-                      </button>
-                    </div>
-                  </div>
-                )}
               </React.Fragment>
             )
           })

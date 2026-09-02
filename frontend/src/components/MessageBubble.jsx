@@ -289,20 +289,7 @@ function MessageBubble({ message, onRegenerate, isGenerating = false, onSelectCi
               <span className="text-xs font-medium text-[#73716D]">Thinking & generating response...</span>
               <span className="typewriter-cursor" />
             </div>
-          ) : (
-            /* Fallback retry card when response is empty */
-            <div className="flex items-center gap-3 py-2.5 px-4 bg-[#FAF5F0] border border-[#F0E4D8] rounded-2xl text-xs text-[#8A6D56] w-fit my-1">
-              <span>No response generated.</span>
-              {onRegenerate && (
-                <button
-                  onClick={() => onRegenerate(message)}
-                  className="font-semibold text-[#1E1F24] underline hover:text-[#E65F38] cursor-pointer"
-                >
-                  Click to retry
-                </button>
-              )}
-            </div>
-          )}
+          ) : null}
 
           {/* Typewriter Blinking Cursor while generating with text */}
           {isGenerating && rawContent.trim() && (
