@@ -38,6 +38,9 @@ class GraphState(TypedDict):
     # Stores optional user_id for multi-tenant vector filtering
     user_id: str | None
 
+    # Stores selected LLM model name (e.g. llama-3.3-70b-versatile)
+    model: str | None
+
     # Annotated tells LangGraph to use add_messages() when updating this key instead of replacing it
     # Stores conversation history
     messages: Annotated[list[BaseMessage], add_messages]

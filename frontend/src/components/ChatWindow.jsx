@@ -10,16 +10,25 @@ import {
   Square,
   AlertTriangle,
   RefreshCw,
-  X
+  X,
+  ChevronDown,
+  Zap,
+  Cpu
 } from 'lucide-react'
 import { useChat } from '../hooks/useChat'
 import MessageBubble from './MessageBubble'
 import SourceInspectorDrawer from './SourceInspectorDrawer'
 import client from '../api/client'
 
+const AVAILABLE_MODELS = [
+  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', provider: 'Groq', badge: 'Fast & Smart ⚡', speed: '500+ tok/s', icon: '⚡' },
+  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', provider: 'Groq', badge: 'Ultra Instant 🚀', speed: '800+ tok/s', icon: '🚀' },
+  { id: 'models/gemini-2.5-flash', name: 'Gemini Flash', provider: 'Google', badge: 'Cloud API ✨', speed: '60 tok/s', icon: '✨' },
+]
+
 /**
  * ChatWindow connects directly to real backend streaming SSE via useChat hook,
- * handles Sarvam AI Speech-to-Text microphone recording, and displays quota limit warnings.
+ * handles Sarvam AI Speech-to-Text microphone recording, model switching, and displays quota limit warnings.
  */
 function ChatWindow({ sessionId, onSessionTitleUpdated }) {
   const { messages, sendMessage, isGenerating, isLoadingHistory, error } = useChat(sessionId)
@@ -27,6 +36,18 @@ function ChatWindow({ sessionId, onSessionTitleUpdated }) {
   const [inputText, setInputText] = useState('')
   const [dismissQuotaError, setDismissQuotaError] = useState(false)
   const [inspectedCitation, setInspectedCitation] = useState(null)
+
+  // Model switching state with localStorage persistence
+  const [selectedModel, setSelectedModel] = useState(() => {
+    return localStorage.getItem('ai_selected_model') || 'llama-3.3-70b-versatile'
+  })
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false)
+
+  const handleSelectModel = (modelId) => {
+    setSelectedModel(modelId)
+    localStorage.setItem('ai_selected_model', modelId)
+    setIsModelMenuOpen(false)
+  }
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false)
@@ -159,7 +180,7 @@ function ChatWindow({ sessionId, onSessionTitleUpdated }) {
 
     const textToSend = inputText
     setInputText('')
-    await sendMessage(textToSend)
+    await sendMessage(textToSend, selectedModel)
     if (onSessionTitleUpdated) {
       onSessionTitleUpdated()
     }
@@ -181,6 +202,7 @@ function ChatWindow({ sessionId, onSessionTitleUpdated }) {
     )
   )
   const errorMessage = error ? (typeof error === 'object' ? error.message || '' : String(error)) : ''
+  const currentModelConfig = AVAILABLE_MODELS.find(m => m.id === selectedModel) || AVAILABLE_MODELS[0]
 
   return (
     <div className="flex flex-col h-full w-full justify-between overflow-hidden relative">
@@ -241,7 +263,7 @@ function ChatWindow({ sessionId, onSessionTitleUpdated }) {
                     const promptToRetry = msg.role === 'user' 
                       ? msg.content 
                       : (messages.slice(0, idx).reverse().find(m => m.role === 'user')?.content || msg.content)
-                    sendMessage(promptToRetry)
+                    sendMessage(promptToRetry, selectedModel)
                   }}
                 />
               </React.Fragment>
@@ -330,11 +352,67 @@ function ChatWindow({ sessionId, onSessionTitleUpdated }) {
               className="w-full bg-transparent border-0 text-[#1E1F24] placeholder-[#8A8892] text-sm sm:text-[15px] focus:outline-none resize-none px-2 pt-1 pb-1 leading-relaxed"
             />
 
-            {/* Bottom Row: Minimalist footer with Sarvam Voice / Action Button */}
+            {/* Bottom Row: Model Switcher & Sarvam Voice / Action Button */}
             <div className="flex items-center justify-between pt-1 px-1">
               
-              <div className="flex items-center gap-2 text-[11px] text-[#8E8D98]">
-                <span className="font-mono opacity-80">AI Knowledge Assistant</span>
+              {/* Left Action: Interactive Model Switcher Pill */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+                  disabled={isGenerating}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/90 hover:bg-white border border-[#DDD8CE] text-xs font-medium text-[#3A3940] hover:text-[#1E1F24] transition-all cursor-pointer shadow-xs disabled:opacity-60"
+                  title="Click to switch AI Model"
+                >
+                  <span className="text-xs">{currentModelConfig?.icon || '⚡'}</span>
+                  <span className="font-medium text-[12px]">{currentModelConfig?.name || 'Llama 3.3 70B'}</span>
+                  <span className="text-[10px] text-[#8E8D98] font-mono">({currentModelConfig?.provider})</span>
+                  <ChevronDown className={`w-3 h-3 text-[#8E8D98] transition-transform ${isModelMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {isModelMenuOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setIsModelMenuOpen(false)} 
+                    />
+                    <div className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-2xl border border-[#E2DDD3] shadow-xl p-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                      <div className="px-2.5 py-1.5 text-[10px] font-semibold text-[#8E8D98] uppercase tracking-wider">
+                        Select AI Engine
+                      </div>
+                      {AVAILABLE_MODELS.map((m) => {
+                        const isSelected = selectedModel === m.id
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => handleSelectModel(m.id)}
+                            className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left transition-all cursor-pointer ${
+                              isSelected 
+                                ? 'bg-[#F3EFE9] text-[#1E1F24] font-medium' 
+                                : 'hover:bg-[#FAF7F2] text-[#55535C]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-base">{m.icon}</span>
+                              <div>
+                                <div className="text-xs font-semibold leading-tight flex items-center gap-1.5">
+                                  {m.name}
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-white border border-[#E0DBD0] text-[#7A7882] font-mono">
+                                    {m.provider}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-[#8E8D98] mt-0.5">{m.badge} • {m.speed}</div>
+                              </div>
+                            </div>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-[#E65F38]" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Right Action: Soundwave Mic / Stop / Submit Circle Button */}

@@ -189,6 +189,7 @@ async def send_message(
     inputs = {
         "query": message_in.content,
         "user_id": str(current_user.id),
+        "model": message_in.model or "llama-3.3-70b-versatile",
         "messages": langchain_messages,
         "route": "direct",
         "documents": [],

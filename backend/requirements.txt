@@ -9,6 +9,8 @@ langchain
 langgraph
 langchain-text-splitters
 langchain-google-genai
+langchain-groq
+fastembed>=0.3.0
 PyMuPDF
 python-docx
 pgvector

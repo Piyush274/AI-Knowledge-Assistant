@@ -1,18 +1,20 @@
 from app.db.session import sessionLocal
-from app.rag.embeddings import embeddings_client
+from app.rag.embeddings import embed_query
 from app.rag.vector_store import search_similar_chunks
 from app.agents.graph import GraphState
 
 def retriever_node(state: GraphState) -> dict:
-    db=sessionLocal()
+    db = sessionLocal()
     try:
-        query=state["query"]
+        query = state.get("query", "").strip()
         user_id = state.get("user_id")
-        query_embedding=embeddings_client.embed_query(query)
+        
+        # In-process CPU embedding generation via FastEmbed (~5ms)
+        query_embedding = embed_query(query)
 
-        chunks=search_similar_chunks(db, query_embedding, limit=5, user_id=user_id)
+        chunks = search_similar_chunks(db, query_embedding, limit=5, user_id=user_id)
 
-        retrieved_docs=[]
+        retrieved_docs = []
         for chunk in chunks:
             retrieved_docs.append(
                 {
@@ -27,8 +29,7 @@ def retriever_node(state: GraphState) -> dict:
                 }
             )
 
-        return {"documents":retrieved_docs}
+        return {"documents": retrieved_docs}
 
     finally:
         db.close()
-        

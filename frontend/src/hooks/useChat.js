@@ -61,8 +61,9 @@ export function useChat(sessionId) {
    * Sends a user query to the active session and streams the assistant response
    * 
    * @param {string} text - The user query content
+   * @param {string} model - The selected LLM model identifier
    */
-  const sendMessage = async (text) => {
+  const sendMessage = async (text, model = "llama-3.3-70b-versatile") => {
 
     //The prevent empty message, no selectchat, stops when ai is generating
     if (!sessionId || !text.trim() || isGenerating) return;
@@ -91,7 +92,7 @@ export function useChat(sessionId) {
           "Content-Type": "application/json",
           "Authorization": token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: text, model: model || "llama-3.3-70b-versatile" }),
       });
 
       if (!response.ok) {

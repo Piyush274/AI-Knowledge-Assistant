@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 class MessageCreate(BaseModel):
     content: str
+    model: str | None = "llama-3.3-70b-versatile"
 
 
 class MessageResponse(BaseModel):
