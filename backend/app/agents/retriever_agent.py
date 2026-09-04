@@ -9,7 +9,7 @@ def retriever_node(state: GraphState) -> dict:
         query = state.get("query", "").strip()
         user_id = state.get("user_id")
         
-        # In-process CPU embedding generation via FastEmbed (~5ms)
+        # Generate query embedding via Google Generative AI API (768 dimensions)
         query_embedding = embed_query(query)
 
         chunks = search_similar_chunks(db, query_embedding, limit=5, user_id=user_id)
