@@ -1,15 +1,25 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import useAuth from '../hooks/useAuth'
 
 function Login() {
   const { login, signup, loading, error } = useAuth()
+  const [searchParams] = useSearchParams()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('session_expired') === 'true') {
+      setSessionExpiredNotice(true)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setSessionExpiredNotice(false)
     if (isSignUp) {
       await signup(email, password)
     } else {
@@ -43,6 +53,14 @@ function Login() {
           </p>
         </div>
 
+        {/* Session Expired Notice */}
+        {sessionExpiredNotice && !error && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-xs text-center flex items-center justify-center gap-2">
+            <span>⏱️</span>
+            <span>Your session has expired. Please sign in again.</span>
+          </div>
+        )}
+
         {/* Error Message */}
         {error && (
           <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-xs text-center">
@@ -61,6 +79,7 @@ function Login() {
               placeholder="name@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
               required
               className="w-full px-4 py-3 bg-[#FAF8F5] border border-[#DDD8CF] rounded-xl text-[#1E1F24] placeholder-[#9D9CA8] text-sm focus:outline-none focus:border-[#1E1F24] transition-all"
             />
@@ -75,6 +94,7 @@ function Login() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete={isSignUp ? "new-password" : "current-password"}
               required
               className="w-full px-4 py-3 bg-[#FAF8F5] border border-[#DDD8CF] rounded-xl text-[#1E1F24] placeholder-[#9D9CA8] text-sm focus:outline-none focus:border-[#1E1F24] transition-all"
             />
@@ -105,6 +125,7 @@ function Login() {
             type="button"
             onClick={() => {
               setIsSignUp(!isSignUp)
+              setSessionExpiredNotice(false)
             }}
             className="text-xs text-[#73716D] hover:text-[#1E1F24] transition-colors cursor-pointer"
           >
